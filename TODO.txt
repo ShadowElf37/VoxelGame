@@ -1,0 +1,5 @@
+- draw a second triangle, with index buffer, ensuring the faces are identified correctly
+- texture a square
+- don't allocate uniform buffer every frame
+- text
+- pause menu
