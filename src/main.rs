@@ -133,8 +133,8 @@ impl ApplicationHandler for engine::Game {
                     let proj = self.world.camera.get_proj_mat(self.aspect_ratio);
                     let view = self.world.camera.get_view_mat(self.world.get_camera_entity());
                     let uniform_data = vs::Data {
-                        facing: self.world.get_camera_entity().as_ref().unwrap().facing.extend(0.0).to_array(),
-                        cam_pos: self.world.get_camera_entity().as_ref().unwrap().pos.extend(0.0).to_array(),
+                        //facing: self.world.get_camera_entity().as_ref().unwrap().facing.extend(0.0).to_array(),
+                        //cam_pos: self.world.get_camera_entity().as_ref().unwrap().pos.extend(0.0).to_array(),
                         view: view.to_cols_array_2d(),
                         proj: proj.to_cols_array_2d(),
                     };
@@ -272,30 +272,33 @@ fn main() {
 
     vk.world.spawn_at_sp();
 
-    let vs = vs::load(vk.device.clone()).expect("failed to create vs module").entry_point("main").unwrap();
-    let fs = fs::load(vk.device.clone()).expect("failed to create fs module").entry_point("main").unwrap();
+    let vs = vs::load(vk.device.clone()).expect("failed to create vs module (your fault)").entry_point("main").unwrap();
+    let fs = fs::load(vk.device.clone()).expect("failed to create fs module (your fault)").entry_point("main").unwrap();
     vk.push_shader(vs);
     vk.push_shader(fs);
 
     let vertices = vec![
         engine::Vertex {
-            position: [-1.0, 0.0, 1.0],
-            normal: [0.0, 1.0, 0.0]
-        },
-        engine::Vertex {
-            position: [-1.0, 0.0, 0.0],
-            normal: [0.0, 1.0, 0.0]
+            position: [0.0, 0.0, 1.0],
         },
         engine::Vertex {
             position: [0.0, 0.0, 0.0],
-            normal: [0.0, 1.0, 0.0]
+        },
+        engine::Vertex {
+            position: [1.0, 0.0, 0.0],
+        },
+        engine::Vertex {
+            position: [1.0, 0.0, 1.0],
         },
     ];
+
+    let indices: Vec<u32> = vec![0, 1, 2, 2, 3, 0];;
+    //vec![0, 1, 2, 2, 3, 0];
 
     let buffer_set = engine::BufferSet {
         vertex_buffer: vk.alloc_vertex_buffer(vertices),
         //normals_buffer: vk.alloc_vertex_buffer(normals),
-        index_buffer: vk.alloc_buffer_from_vector(vec![0u16, 1u16, 2u16], BufferUsage::INDEX_BUFFER, true),
+        index_buffer: vk.alloc_buffer_from_vector(indices, BufferUsage::INDEX_BUFFER, true),
         uniform_buffer_allocator: vk.make_subbuffer_allocator(BufferUsage::UNIFORM_BUFFER),
     };
     vk.buffer_set = Some(Arc::new(buffer_set));

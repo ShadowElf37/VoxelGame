@@ -2,4 +2,6 @@
 - texture a square
 - don't allocate uniform buffer every frame
 - text
+- run clock, physics, etc during frame-in-flight
 - pause menu
+- fog

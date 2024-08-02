@@ -30,7 +30,7 @@ impl Clock {
     }
 
     fn duration_to_s(dur: Duration) -> f32 {
-        (dur.as_secs() as f32) + (dur.subsec_millis() as f32) / 1000f32
+        (dur.as_secs() as f32) + (dur.subsec_nanos() as f32) / 1000_000_000f32
     }
 
     pub fn tick(&mut self) {

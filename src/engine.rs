@@ -83,14 +83,14 @@ use crate::world;
 pub struct Vertex {
     #[format(R32G32B32_SFLOAT)]
     pub position: [f32; 3],
-    #[format(R32G32B32_SFLOAT)]
-    pub normal: [f32; 3],
+    //#[format(R32G32B32_SFLOAT)]
+    //pub normal: [f32; 3],
 }
 
 pub struct BufferSet {
     pub vertex_buffer: Subbuffer<[Vertex]>,
     //pub normals_buffer: Subbuffer<[Normal]>,
-    pub index_buffer: Subbuffer<[u16]>,
+    pub index_buffer: Subbuffer<[u32]>,
     pub uniform_buffer_allocator: SubbufferAllocator,
 }
 
