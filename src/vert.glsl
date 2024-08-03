@@ -2,8 +2,10 @@
 
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
+layout(location = 2) in uint tex_index;
 
 layout(location = 0) out vec2 tex_coords;
+layout(location = 1) flat out uint tex_id;
 
 //layout(location = 0) out vec3 view_normal;
 
@@ -16,6 +18,7 @@ layout(set = 0, binding = 0) uniform Data {
 
 void main() {
     tex_coords = uv;
+    tex_id = tex_index;
     //view_normal = transpose(inverse(mat3(data.view))) * normal;
     gl_Position = data.proj * data.view * vec4(position, 1.0);
 }

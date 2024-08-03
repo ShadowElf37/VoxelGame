@@ -1,3 +1,4 @@
+use vulkano::image::sampler::BorderColor;
 use vulkano::image::sampler::SamplerCreateInfo;
 use vulkano::image::sampler::Filter;
 use vulkano::image::sampler::SamplerMipmapMode;
@@ -90,8 +91,8 @@ pub struct Vertex {
     pub position: [f32; 3],
     #[format(R32G32_SFLOAT)]
     pub uv: [f32; 2],
-    #[format(R64_UINT)]
-    pub tex_index: usize,
+    #[format(R32_UINT)]
+    pub tex_index: u32,
     //#[format(R32G32B32_SFLOAT)]
     //pub normal: [f32; 3],
 }
@@ -341,8 +342,9 @@ impl Game {
                         mag_filter: Filter::Nearest,
                         min_filter: Filter::Nearest,
                         mipmap_mode: SamplerMipmapMode::Nearest,
-                        address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                        address_mode: [SamplerAddressMode::ClampToBorder; 3],
                         mip_lod_bias: 0.0,
+                        border_color: BorderColor::FloatOpaqueBlack,
                         ..Default::default()
                     },
                 ).unwrap();
@@ -575,9 +577,11 @@ impl Game {
     // TEXTURING
 
     pub fn get_texture_descriptor_set_writers(&self) -> Vec<WriteDescriptorSet>{
-        self.textures.iter().enumerate().map(|(i, tex)| {
-            WriteDescriptorSet::image_view_sampler(1+(i as u32), tex.clone(), self.texture_sampler.clone())
-        }).collect()
+        use std::iter::zip;
+        vec![WriteDescriptorSet::image_view_sampler_array(1, 0, self.textures.iter().map(|t| (t.clone(), self.texture_sampler.clone())))]
+        /*self.textures.iter().enumerate().map(|(i, tex)| {
+            WriteDescriptorSet::image_view_sampler(1, tex.clone(), self.texture_sampler.clone())
+        }).collect()*/
     }
 
     pub fn load_texture(&mut self, fp: &str, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>)-> (Subbuffer<[u8]>, Arc<Image>) {
@@ -587,11 +591,6 @@ impl Game {
         let img = ImageReader::open(fp).expect(&format!("Failed to load {}", fp)).decode().expect(&format!("Failed to decode {}", fp)).into_rgba8();
         let w = img.width();
         let h = img.height();
-
-        /*let sl: [u8; 4] = img.clone().into_raw()[0..4].try_into().unwrap();
-        println!("{:?}", img.get_pixel(0,0));
-        println!("{:?}", sl);*/
-        //panic!();
 
         let staging_buffer = Buffer::from_iter(
             self.memory_allocator.clone(),
@@ -606,12 +605,6 @@ impl Game {
             },
             img.into_raw(),
         ).expect("failed to create staging buffer");
-
-        /*let sb = staging_buffer.clone();
-        let buffer_content = sb.read().unwrap();
-        let image = ImageBuffer::<Rgba<u8>, _>::from_raw(w, h, &buffer_content[..]).unwrap();
-        image.save("test.png").unwrap();
-        println!("Done!");*/
 
         let texture = Image::new(
             self.memory_allocator.clone(),

@@ -49,6 +49,8 @@ impl ApplicationHandler for engine::Game {
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
         let mut player = self.world.entities[0].as_mut().unwrap();
 
+
+
         match event {
             DeviceEvent::MouseMotion {delta} => {
                 if self.world.game_state.in_game && !self.world.game_state.paused {
@@ -283,27 +285,12 @@ fn main() {
     // LOAD TEXTURES
     println!("Loading texture...");
 
-    /*let buf = vulkano::buffer::Buffer::from_iter(
-            game.memory_allocator.clone(),
-            BufferCreateInfo {
-                usage: BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST,
-                ..Default::default()
-            },
-            AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::PREFER_HOST
-                    | MemoryTypeFilter::HOST_RANDOM_ACCESS,
-                ..Default::default()
-            },
-            (0..16 * 16 * 4).map(|_| 1u8),
-        ).expect("failed to create staging buffer");*/
+
 
     let mut texture_upload_builder = game.create_command_buffer_builder();
     game.load_texture("src/assets/textures/grass_block_side.png", &mut texture_upload_builder);
-    /*texture_upload_builder.copy_image_to_buffer(CopyImageToBufferInfo::image_buffer(
-        img,
-        buf.clone(),
-    )).unwrap();*/
-    
+    game.load_texture("src/assets/textures/grass_block_top.png", &mut texture_upload_builder);
+    game.load_texture("src/assets/textures/dirt.png", &mut texture_upload_builder);
 
     let command_buffer = texture_upload_builder.build().unwrap();
     let commands_future = sync::now(game.device.clone())
@@ -312,13 +299,6 @@ fn main() {
     println!("Done!");
     commands_future.wait(None).unwrap();
 
-    /*let buffer_content = buf.read().unwrap();
-    let image = ImageBuffer::<Rgba<u8>, _>::from_raw(16, 16, &buffer_content[..]).unwrap();
-    image.save("test2.png").unwrap();
-    println!("Done!");
-    let sl: [u8; 4] = buffer_content[0..4].try_into().unwrap();
-        println!("{:?}", sl);*/
-    
     // LOAD SHADERS
     let vs = vs::load(game.device.clone()).expect("failed to create vs module (your fault)").entry_point("main").unwrap();
     let fs = fs::load(game.device.clone()).expect("failed to create fs module (your fault)").entry_point("main").unwrap();
@@ -327,6 +307,7 @@ fn main() {
 
     // LOAD GEOMETRY
     let vertices = vec![
+    // front
         engine::Vertex {
             position: [0.0, 0.0, 1.0],
             uv: [0.0, 0.0],
@@ -347,9 +328,132 @@ fn main() {
             uv: [1.0, 0.0],
             tex_index: 0,
         },
+    // right
+        
+        
+        engine::Vertex {
+            position: [1.0, 0.0, 1.0],
+            uv: [1.0, 1.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [1.0, 0.0, 0.0],
+            uv: [0.0, 0.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [1.0, -1.0, 0.0],
+            uv: [0.0, 1.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [1.0, -1.0, 1.0],
+            uv: [1.0, 0.0],
+            tex_index: 0,
+        },
+
+    // left
+        engine::Vertex {
+            position: [0.0, -1.0, 1.0],
+            uv: [0.0, 0.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [0.0, -1.0, 0.0],
+            uv: [0.0, 1.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [0.0, 0.0, 0.0],
+            uv: [1.0, 1.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [0.0, 0.0, 1.0],
+            uv: [1.0, 0.0],
+            tex_index: 0,
+        },
+
+    // back
+        
+        
+        engine::Vertex {
+            position: [1.0, -1.0, 1.0],
+            uv: [1.0, 1.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [1.0, -1.0, 0.0],
+            uv: [0.0, 0.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [0.0, -1.0, 0.0],
+            uv: [1.0, 0.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [0.0, -1.0, 1.0],
+            uv: [0.0, 1.0],
+            tex_index: 0,
+        },
+
+    //top
+        engine::Vertex {
+            position: [0.0, -1.0, 1.0],
+            uv: [0.0, 0.0],
+            tex_index: 1,
+        },
+        engine::Vertex {
+            position: [0.0, 0.0, 1.0],
+            uv: [0.0, 1.0],
+            tex_index: 1,
+        },
+        engine::Vertex {
+            position: [1.0, 0.0, 1.0],
+            uv: [1.0, 1.0],
+            tex_index: 1,
+        },
+        engine::Vertex {
+            position: [1.0, -1.0, 1.0],
+            uv: [1.0, 0.0],
+            tex_index: 1,
+        },
+
+    // bottom
+    
+        
+        engine::Vertex {
+            position: [1.0, 0.0, 0.0],
+            uv: [1.0, 0.0],
+            tex_index: 2,
+        },
+        engine::Vertex {
+            position: [0.0, 0.0, 0.0],
+            uv: [0.0, 1.0],
+            tex_index: 2,
+        },
+        engine::Vertex {
+            position: [0.0, -1.0, 0.0],
+            uv: [1.0, 1.0],
+            tex_index: 2,
+        },
+        engine::Vertex {
+            position: [1.0, -1.0, 0.0],
+            uv: [0.0, 0.0],
+            tex_index: 2,
+        },
+        
     ];
 
-    let indices: Vec<u32> = vec![0, 1, 2, 2, 3, 0];;
+    let indices: Vec<u32> = vec![
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4,
+    8, 9, 10, 10, 11, 8,
+    12, 13, 14, 14, 15, 12,
+    16, 17, 18, 18, 19, 16,
+    20, 21, 22, 22, 23, 20,
+    ];
     //vec![0, 1, 2, 2, 3, 0];
 
     // PUSH BUFFERS
