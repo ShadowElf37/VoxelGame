@@ -344,7 +344,6 @@ impl Game {
                         mipmap_mode: SamplerMipmapMode::Nearest,
                         address_mode: [SamplerAddressMode::ClampToBorder; 3],
                         mip_lod_bias: 0.0,
-                        border_color: BorderColor::FloatOpaqueBlack,
                         ..Default::default()
                     },
                 ).unwrap();
@@ -610,7 +609,7 @@ impl Game {
             self.memory_allocator.clone(),
             ImageCreateInfo {
                 image_type: ImageType::Dim2d,
-                format: Format::R8G8B8A8_SRGB,
+                format: self.image_format,
                 extent: [w, h, 1],
                 usage: ImageUsage::SAMPLED | ImageUsage::TRANSFER_DST,
                 mip_levels: 1,

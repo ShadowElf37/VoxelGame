@@ -333,17 +333,17 @@ fn main() {
         
         engine::Vertex {
             position: [1.0, 0.0, 1.0],
-            uv: [1.0, 1.0],
-            tex_index: 0,
-        },
-        engine::Vertex {
-            position: [1.0, 0.0, 0.0],
             uv: [0.0, 0.0],
             tex_index: 0,
         },
         engine::Vertex {
-            position: [1.0, -1.0, 0.0],
+            position: [1.0, 0.0, 0.0],
             uv: [0.0, 1.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
+            position: [1.0, -1.0, 0.0],
+            uv: [1.0, 1.0],
             tex_index: 0,
         },
         engine::Vertex {
@@ -379,22 +379,22 @@ fn main() {
         
         engine::Vertex {
             position: [1.0, -1.0, 1.0],
-            uv: [1.0, 1.0],
-            tex_index: 0,
-        },
-        engine::Vertex {
-            position: [1.0, -1.0, 0.0],
             uv: [0.0, 0.0],
             tex_index: 0,
         },
         engine::Vertex {
+            position: [1.0, -1.0, 0.0],
+            uv: [0.0, 1.0],
+            tex_index: 0,
+        },
+        engine::Vertex {
             position: [0.0, -1.0, 0.0],
-            uv: [1.0, 0.0],
+            uv: [1.0, 1.0],
             tex_index: 0,
         },
         engine::Vertex {
             position: [0.0, -1.0, 1.0],
-            uv: [0.0, 1.0],
+            uv: [1.0, 0.0],
             tex_index: 0,
         },
 
@@ -425,7 +425,7 @@ fn main() {
         
         engine::Vertex {
             position: [1.0, 0.0, 0.0],
-            uv: [1.0, 0.0],
+            uv: [0.0, 0.0],
             tex_index: 2,
         },
         engine::Vertex {
@@ -440,7 +440,7 @@ fn main() {
         },
         engine::Vertex {
             position: [1.0, -1.0, 0.0],
-            uv: [0.0, 0.0],
+            uv: [1.0, 0.0],
             tex_index: 2,
         },
         
