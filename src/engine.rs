@@ -122,6 +122,7 @@ pub struct Game {
     pub buffer_set: Option<Arc<BufferSet>>,
     pub shaders: Vec<EntryPoint>,
     pub textures: Vec<Arc<ImageView>>,
+    pub texture_arrays: Vec<Arc<ImageView>>,
     pub texture_sampler: Arc<Sampler>,
     pub depth_buffer: Arc<ImageView>,
     pub framebuffers: Vec<Arc<Framebuffer>>,
@@ -370,6 +371,7 @@ impl Game {
             depth_buffer: depth_buffer,
             framebuffers: framebuffers,
             textures: vec![],
+            texture_arrays: vec![],
             texture_sampler: texture_sampler,
             pipeline: None,
             buffer_set: None,
@@ -576,8 +578,14 @@ impl Game {
     // TEXTURING
 
     pub fn get_texture_descriptor_set_writers(&self) -> Vec<WriteDescriptorSet>{
-        use std::iter::zip;
-        vec![WriteDescriptorSet::image_view_sampler_array(1, 0, self.textures.iter().map(|t| (t.clone(), self.texture_sampler.clone())))]
+        let mut writers: Vec<WriteDescriptorSet> = vec![];
+        if !self.textures.is_empty() {
+            writers.push(WriteDescriptorSet::image_view_sampler_array(1, 0, self.textures.iter().map(|t| (t.clone(), self.texture_sampler.clone()))));
+        }
+        if !self.texture_arrays.is_empty() {
+            writers.push(WriteDescriptorSet::image_view_sampler_array(2, 0, self.texture_arrays.iter().map(|t| (t.clone(), self.texture_sampler.clone()))));
+        }
+        return writers;
         /*self.textures.iter().enumerate().map(|(i, tex)| {
             WriteDescriptorSet::image_view_sampler(1, tex.clone(), self.texture_sampler.clone())
         }).collect()*/
@@ -630,15 +638,84 @@ impl Game {
         //return (staging_buffer, texture);
     }
 
+
+
+    pub fn load_texture_array(&mut self, fp_vec: Vec<&str>, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) { //-> (Subbuffer<[u8]>, Arc<Image>)
+        use image::{ImageBuffer, Rgba, ImageReader, DynamicImage};
+        use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
+
+        fn load_rgba8(fp: &str) -> ImageBuffer<Rgba<u8>, Vec<u8>> {ImageReader::open(fp).expect(&format!("Failed to load {}", fp)).decode().expect(&format!("Failed to decode {}", fp)).into_rgba8()}
+
+        let mut w: u32 = 0;
+        let mut h: u32 = 0;
+        let mut img_array_raw: Vec<u8> = vec![];
+        for fp in fp_vec.iter() {
+            let img_buffer = load_rgba8(fp);
+            w = img_buffer.width();
+            h = img_buffer.height();
+            img_array_raw.extend(img_buffer.into_raw());
+        }
+
+
+        let staging_buffer = Buffer::from_iter(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_SRC,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                    | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                ..Default::default()
+            },
+            img_array_raw,
+        ).expect("failed to create staging buffer");
+
+        let texture = Image::new(
+            self.memory_allocator.clone(),
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: self.image_format,
+                extent: [w, h, 1],
+                usage: ImageUsage::SAMPLED | ImageUsage::TRANSFER_DST,
+                mip_levels: 1,
+                array_layers: fp_vec.len() as u32,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
+                ..Default::default()
+            },
+        ).expect("Failed to create texture buffer in load_texture()");
+
+        self.texture_arrays.push(ImageView::new_default(texture.clone()).unwrap());
+
+        command_builder.copy_buffer_to_image(vulkano::command_buffer::CopyBufferToImageInfo::buffer_image(
+            staging_buffer.clone(),
+            texture.clone(),
+        )).unwrap();
+        //return (staging_buffer, texture);
+    }
+
     pub fn load_textures(&mut self, fp_vec: Vec<&str>, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) {
         for s in fp_vec {
             self.load_texture(s, command_builder);
         }
     }
+    pub fn load_texture_arrays(&mut self, fp_vec_vec: Vec<Vec<&str>>, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) {
+        for vec in fp_vec_vec {
+            self.load_texture_array(vec, command_builder);
+        }
+    }
 
-    pub fn load_textures_now(&mut self, fp_vec: Vec<&str>) -> Result<(), Validated<vulkano::VulkanError>> {
+    pub fn load_textures_now(&mut self, texture_fps: Option<Vec<&str>>, texture_array_fps: Option<Vec<Vec<&str>>>) -> Result<(), Validated<vulkano::VulkanError>> {
         let mut texture_upload_builder = self.create_command_buffer_builder();
-        self.load_textures(fp_vec, &mut texture_upload_builder);
+        if let Some(fps) = texture_fps {
+            self.load_textures(fps, &mut texture_upload_builder);
+        }
+        if let Some(fps) = texture_array_fps {
+            self.load_texture_arrays(fps, &mut texture_upload_builder);
+        }
         let command_buffer = texture_upload_builder.build().unwrap();
         let commands_future = sync::now(self.device.clone())
             .then_execute(self.queue.clone(), command_buffer).unwrap()

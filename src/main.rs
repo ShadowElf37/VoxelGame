@@ -284,11 +284,16 @@ fn main() {
 
     // LOAD TEXTURES
     println!("Loading textures...");
-    game.load_textures_now(vec![
-        "assets/textures/grass_block_side.png",
-        "assets/textures/grass_block_top.png",
-        "assets/textures/dirt.png",
-    ]);
+    game.load_textures_now(
+        None,
+        Some(vec![
+            vec![
+                "assets/textures/grass_block_side.png",
+                "assets/textures/grass_block_top.png",
+                "assets/textures/dirt.png",
+            ]
+        ])
+    );
     println!("Loaded!");
 
 
