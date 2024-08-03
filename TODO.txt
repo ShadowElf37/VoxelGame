@@ -1,4 +1,3 @@
-- texture a square!!!!!!!
 -texture a cube
 
 

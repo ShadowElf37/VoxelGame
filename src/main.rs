@@ -53,6 +53,7 @@ impl ApplicationHandler for engine::Game {
 
         match event {
             DeviceEvent::MouseMotion {delta} => {
+                println!("Mouse moved: {:?} {} {} {}", delta, self.world.game_state.in_game, self.world.game_state.paused, self.hold_cursor);
                 if self.world.game_state.in_game && !self.world.game_state.paused {
                     player.turn_horizontal(self.world.camera.look_sensitivity * delta.0 as f32);
                     player.turn_vertical(-self.world.camera.look_sensitivity * delta.1 as f32);
