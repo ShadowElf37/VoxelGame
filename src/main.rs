@@ -283,21 +283,14 @@ fn main() {
 
 
     // LOAD TEXTURES
-    println!("Loading texture...");
+    println!("Loading textures...");
+    game.load_textures_now(vec![
+        "assets/textures/grass_block_side.png",
+        "assets/textures/grass_block_top.png",
+        "assets/textures/dirt.png",
+    ]);
+    println!("Loaded!");
 
-
-
-    let mut texture_upload_builder = game.create_command_buffer_builder();
-    game.load_texture("src/assets/textures/grass_block_side.png", &mut texture_upload_builder);
-    game.load_texture("src/assets/textures/grass_block_top.png", &mut texture_upload_builder);
-    game.load_texture("src/assets/textures/dirt.png", &mut texture_upload_builder);
-
-    let command_buffer = texture_upload_builder.build().unwrap();
-    let commands_future = sync::now(game.device.clone())
-        .then_execute(game.queue.clone(), command_buffer).unwrap()
-        .then_signal_fence_and_flush().unwrap();
-    println!("Done!");
-    commands_future.wait(None).unwrap();
 
     // LOAD SHADERS
     let vs = vs::load(game.device.clone()).expect("failed to create vs module (your fault)").entry_point("main").unwrap();

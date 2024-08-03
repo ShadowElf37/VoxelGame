@@ -583,7 +583,7 @@ impl Game {
         }).collect()*/
     }
 
-    pub fn load_texture(&mut self, fp: &str, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>)-> (Subbuffer<[u8]>, Arc<Image>) {
+    pub fn load_texture(&mut self, fp: &str, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) { //-> (Subbuffer<[u8]>, Arc<Image>)
         use image::{ImageBuffer, Rgba, ImageReader, DynamicImage};
         use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
 
@@ -627,6 +627,22 @@ impl Game {
             staging_buffer.clone(),
             texture.clone(),
         )).unwrap();
-        return (staging_buffer, texture);
+        //return (staging_buffer, texture);
+    }
+
+    pub fn load_textures(&mut self, fp_vec: Vec<&str>, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) {
+        for s in fp_vec {
+            self.load_texture(s, command_builder);
+        }
+    }
+
+    pub fn load_textures_now(&mut self, fp_vec: Vec<&str>) -> Result<(), Validated<vulkano::VulkanError>> {
+        let mut texture_upload_builder = self.create_command_buffer_builder();
+        self.load_textures(fp_vec, &mut texture_upload_builder);
+        let command_buffer = texture_upload_builder.build().unwrap();
+        let commands_future = sync::now(self.device.clone())
+            .then_execute(self.queue.clone(), command_buffer).unwrap()
+            .then_signal_fence_and_flush().unwrap();
+        commands_future.wait(None)
     }
 }
