@@ -41,9 +41,9 @@ impl Entity {
         Self {
             pos: pos,
             vel: Vec3::new(0.0, 0.0, 0.0),
-            facing: Vec3::new(-1.0, -1.0, -1.0).normalize(),
+            facing: Vec3::new(0.0, -1.0, 0.0).normalize(),
 
-            move_speed: 1.0,
+            move_speed: 3.0,
             desired_movement: NoMovement.clone(),
 
             flying: true,

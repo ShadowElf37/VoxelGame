@@ -1,7 +1,30 @@
-- draw a second triangle, with index buffer, ensuring the faces are identified correctly
-- texture a square
-- don't allocate uniform buffer every frame
+- texture a square!!!!!!!
+-texture a cube
+
+
+- don't re-allocate uniform buffer every frame?
 - text
-- run clock, physics, etc during frame-in-flight
-- pause menu
+- frame in flight
+- pause menu (note: due to current lack of pause condition for keybinds, some bugs with cursor behavior)
 - fog
+- instancing, only send block ID to gpu
+
+
+
+
+lighting, physics in thread
+own their own clocks (change nomenclature to "tick" instead of "frame")
+have internal fences to rate limit
+access lighting array and e.pos/e.vel (or make a new e.PhysState) using mutex
+event_loop accesses mutexes more/less often than they're written to
+
+
+cpu/compute calculates visible FACES
+GPU instance the faces, have an array on gpu of visible faces with texture ids
+
+saving chunks is just block_id,BlockProto does most of the work
+
+camera at 1.8m
+
+
+

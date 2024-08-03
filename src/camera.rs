@@ -31,6 +31,6 @@ impl Camera {
     }
     pub fn get_view_mat(&self, entity: &Option<entity::Entity>) -> Mat4 {
         let e = entity.as_ref().unwrap();
-        Mat4::look_to_rh(e.pos+Vec3::Z+Vec3::Z, e.facing, -Vec3::Z) // negative because glsl is retarded
+        Mat4::look_to_rh(e.pos+Vec3::Z*1.8, e.facing, -Vec3::Z) // negative because glsl is retarded
     }
 }

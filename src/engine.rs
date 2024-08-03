@@ -1,3 +1,8 @@
+use vulkano::image::sampler::SamplerCreateInfo;
+use vulkano::image::sampler::Filter;
+use vulkano::image::sampler::SamplerMipmapMode;
+use vulkano::image::sampler::SamplerAddressMode;
+use vulkano::image::sampler::Sampler;
 use vulkano::pipeline::graphics::rasterization::FrontFace;
 use vulkano::pipeline::graphics::rasterization::CullMode;
 use vulkano::pipeline::graphics::vertex_input::Vertex as vulkan_vertex;
@@ -83,6 +88,10 @@ use crate::world;
 pub struct Vertex {
     #[format(R32G32B32_SFLOAT)]
     pub position: [f32; 3],
+    #[format(R32G32_SFLOAT)]
+    pub uv: [f32; 2],
+    #[format(R64_UINT)]
+    pub tex_index: usize,
     //#[format(R32G32B32_SFLOAT)]
     //pub normal: [f32; 3],
 }
@@ -111,7 +120,8 @@ pub struct Game {
     pub pipeline: Option<Arc<GraphicsPipeline>>,
     pub buffer_set: Option<Arc<BufferSet>>,
     pub shaders: Vec<EntryPoint>,
-
+    pub textures: Vec<Arc<ImageView>>,
+    pub texture_sampler: Arc<Sampler>,
     pub depth_buffer: Arc<ImageView>,
     pub framebuffers: Vec<Arc<Framebuffer>>,
     pub image_format: vulkano::format::Format,
@@ -218,7 +228,7 @@ impl Game {
                     format: Format::D16_UNORM,
                     samples: 1,
                     load_op: Clear,
-                    store_op: DontCare,
+                    store_op: Store,
                 },
             },
             pass: {
@@ -298,10 +308,11 @@ impl Game {
             .into_iter()
             .next()
             .unwrap();
-        let image_format = physical_device
-            .surface_formats(&surface, Default::default())
-            .unwrap()[0]
-            .0;
+        let image_format = Format::R8G8B8A8_SRGB;
+        if physical_device.surface_formats(&surface, Default::default()).unwrap().iter().all(|x| x.0 != image_format) {
+            panic!("Device doesn't support R8G8B8A8_SRGB. WHAT THE FUCK DO I DO :(")
+        }
+        //println!("Using first color format of {:?}", physical_device.surface_formats(&surface, Default::default()).unwrap());
 
         let (mut swapchain, images) = Swapchain::new(
             device.clone(),
@@ -324,6 +335,18 @@ impl Game {
         let (depth_buffer, framebuffers) =
             Self::get_framebuffers_internal(memory_allocator.clone(), render_pass.clone(), &images);
 
+        let texture_sampler = Sampler::new(
+                    device.clone(),
+                    SamplerCreateInfo {
+                        mag_filter: Filter::Nearest,
+                        min_filter: Filter::Nearest,
+                        mipmap_mode: SamplerMipmapMode::Nearest,
+                        address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                        mip_lod_bias: 0.0,
+                        ..Default::default()
+                    },
+                ).unwrap();
+
         // BUNDLE IT ALL UP
         return Self {
             device: device.clone(),
@@ -345,7 +368,8 @@ impl Game {
             render_pass: render_pass,
             depth_buffer: depth_buffer,
             framebuffers: framebuffers,
-
+            textures: vec![],
+            texture_sampler: texture_sampler,
             pipeline: None,
             buffer_set: None,
             shaders: vec![],
@@ -543,5 +567,74 @@ impl Game {
                 ..Default::default()
             },
         )
+    }
+
+
+
+
+    // TEXTURING
+
+    pub fn get_texture_descriptor_set_writers(&self) -> Vec<WriteDescriptorSet>{
+        self.textures.iter().enumerate().map(|(i, tex)| {
+            WriteDescriptorSet::image_view_sampler(1+(i as u32), tex.clone(), self.texture_sampler.clone())
+        }).collect()
+    }
+
+    pub fn load_texture(&mut self, fp: &str, command_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>)-> (Subbuffer<[u8]>, Arc<Image>) {
+        use image::{ImageBuffer, Rgba, ImageReader, DynamicImage};
+        use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
+
+        let img = ImageReader::open(fp).expect(&format!("Failed to load {}", fp)).decode().expect(&format!("Failed to decode {}", fp)).into_rgba8();
+        let w = img.width();
+        let h = img.height();
+
+        /*let sl: [u8; 4] = img.clone().into_raw()[0..4].try_into().unwrap();
+        println!("{:?}", img.get_pixel(0,0));
+        println!("{:?}", sl);*/
+        //panic!();
+
+        let staging_buffer = Buffer::from_iter(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_SRC,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                    | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                ..Default::default()
+            },
+            img.into_raw(),
+        ).expect("failed to create staging buffer");
+
+        /*let sb = staging_buffer.clone();
+        let buffer_content = sb.read().unwrap();
+        let image = ImageBuffer::<Rgba<u8>, _>::from_raw(w, h, &buffer_content[..]).unwrap();
+        image.save("test.png").unwrap();
+        println!("Done!");*/
+
+        let texture = Image::new(
+            self.memory_allocator.clone(),
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: Format::R8G8B8A8_SRGB,
+                extent: [w, h, 1],
+                usage: ImageUsage::SAMPLED | ImageUsage::TRANSFER_DST,
+                mip_levels: 1,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
+                ..Default::default()
+            },
+        ).expect("Failed to create texture buffer in load_texture()");
+
+        self.textures.push(ImageView::new_default(texture.clone()).unwrap());
+
+        command_builder.copy_buffer_to_image(vulkano::command_buffer::CopyBufferToImageInfo::buffer_image(
+            staging_buffer.clone(),
+            texture.clone(),
+        )).unwrap();
+        return (staging_buffer, texture);
     }
 }

@@ -19,6 +19,8 @@ pub struct World {
     pub entities: Vec<Option<Entity>>,
     pub spawn_point: Vec3,
 
+    pub sky_color: [f32; 4],
+
     camera_hook: usize,
     pub camera: camera::Camera,
 
@@ -34,7 +36,9 @@ impl World {
             },
 
             entities: vec![None as Option<Entity>; ENTITY_LIMIT],
-            spawn_point: Vec3::new(1.0, 1.0, 0.0),
+            spawn_point: Vec3::new(0.5, 1.0, -1.0),
+
+            sky_color: [0.58, 0.93, 0.95, 1.0],
 
             camera_hook: 0,
             camera: camera::Camera::new(),

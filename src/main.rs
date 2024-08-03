@@ -1,3 +1,10 @@
+use image::ImageBuffer;
+use image::Rgba;
+use vulkano::command_buffer::CopyImageToBufferInfo;
+use vulkano::command_buffer::CopyBufferToImageInfo;
+use vulkano::buffer::BufferCreateInfo;
+use vulkano::memory::allocator::AllocationCreateInfo;
+use vulkano::memory::allocator::MemoryTypeFilter;
 use winit::window::CursorGrabMode;
 use winit::event::DeviceId;
 use winit::event::DeviceEvent;
@@ -145,11 +152,8 @@ impl ApplicationHandler for engine::Game {
                     subbuffer
                 };
 
-                // CREATE DESCRIPTOR_SET NEEDED TO ATTACH THE projdata_buffer
-                // can also be used to attach other buffers (vert and norm are handled directly in the command buffer)
-                let desc_set = self
-                    .create_descriptor_set(0, vec![WriteDescriptorSet::buffer(0, projdata_buffer)]);
-
+                
+                
                 // acquire next image in the swapchain
                 let (acquired_image_index, suboptimal, acquire_image_future) =
                     match vulkano::swapchain::acquire_next_image(self.swapchain.clone(), None)
@@ -166,15 +170,26 @@ impl ApplicationHandler for engine::Game {
                     self.recreate_swapchain = true;
                 }
 
-                let buffer_set = self.buffer_set.clone().unwrap();
-
                 // build command buffer
                 let mut builder = self.create_command_buffer_builder();
+
+                // live load texture
+                //self.textures.clear();
+                //self.load_texture("src/assets/textures/grass_block_side.png", &mut builder);
+
+                // CREATE DESCRIPTOR_SET NEEDED TO ATTACH THE projdata_buffer
+                // can also be used to attach other buffers (vert and norm are handled directly in the command buffer)
+                // must be used to attach our textures
+                let mut desc_set_writers = self.get_texture_descriptor_set_writers();
+                desc_set_writers.push(WriteDescriptorSet::buffer(0, projdata_buffer));
+                let desc_set = self.create_descriptor_set(0, desc_set_writers);
+
+                let buffer_set = self.buffer_set.clone().unwrap();
                 builder
                     .begin_render_pass(
                         RenderPassBeginInfo {
                             clear_values: vec![
-                                Some([0.0, 0.0, 0.0, 1.0].into()),
+                                Some(self.world.sky_color.into()),
                                 Some(1f32.into()),
                             ],
                             ..RenderPassBeginInfo::framebuffer(
@@ -182,26 +197,19 @@ impl ApplicationHandler for engine::Game {
                             )
                         },
                         Default::default(),
-                    )
-                    .unwrap()
-                    .bind_pipeline_graphics(self.pipeline.clone().unwrap())
-                    .unwrap()
+                    ).unwrap()
+                    .bind_pipeline_graphics(self.pipeline.clone().unwrap()).unwrap()
                     .bind_descriptor_sets(
                         PipelineBindPoint::Graphics,
                         self.get_pipeline_layout(),
                         0,
                         desc_set,
-                    )
-                    .unwrap()
-                    .bind_vertex_buffers(0, buffer_set.vertex_buffer.clone())//, buffer_set.normals_buffer.clone()))
-                    .unwrap()
-                    .bind_index_buffer(buffer_set.index_buffer.clone())
-                    .unwrap();
+                    ).unwrap()
+                    .bind_vertex_buffers(0, buffer_set.vertex_buffer.clone()).unwrap()
+                    .bind_index_buffer(buffer_set.index_buffer.clone()).unwrap();
 
                 unsafe {
-                    builder
-                        .draw_indexed(buffer_set.index_buffer.len() as u32, 1, 0, 0, 0)
-                        .unwrap();
+                    builder.draw_indexed(buffer_set.index_buffer.len() as u32, 1, 0, 0, 0).unwrap();
                 }
 
                 builder.end_render_pass(Default::default()).unwrap();
@@ -262,48 +270,101 @@ mod fs {
 }
 
 fn main() {
+    // INIT EVENT LOOP
     let event_loop = winit::event_loop::EventLoop::new().expect("Failed to even create an event loop!");
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut vk = engine::Game::new(&event_loop);
-    vk.window.set_title("Minecraft");
+    // INIT GAME AND WINDOW
+    let mut game = engine::Game::new(&event_loop);
+    game.window.set_title("Minecraft");
+    game.world.spawn_at_sp();
 
-    println!("{:?}", vk.window.inner_size());
 
-    vk.world.spawn_at_sp();
+    // LOAD TEXTURES
+    println!("Loading texture...");
 
-    let vs = vs::load(vk.device.clone()).expect("failed to create vs module (your fault)").entry_point("main").unwrap();
-    let fs = fs::load(vk.device.clone()).expect("failed to create fs module (your fault)").entry_point("main").unwrap();
-    vk.push_shader(vs);
-    vk.push_shader(fs);
+    /*let buf = vulkano::buffer::Buffer::from_iter(
+            game.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                    | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                ..Default::default()
+            },
+            (0..16 * 16 * 4).map(|_| 1u8),
+        ).expect("failed to create staging buffer");*/
 
+    let mut texture_upload_builder = game.create_command_buffer_builder();
+    game.load_texture("src/assets/textures/grass_block_side.png", &mut texture_upload_builder);
+    /*texture_upload_builder.copy_image_to_buffer(CopyImageToBufferInfo::image_buffer(
+        img,
+        buf.clone(),
+    )).unwrap();*/
+    
+
+    let command_buffer = texture_upload_builder.build().unwrap();
+    let commands_future = sync::now(game.device.clone())
+        .then_execute(game.queue.clone(), command_buffer).unwrap()
+        .then_signal_fence_and_flush().unwrap();
+    println!("Done!");
+    commands_future.wait(None).unwrap();
+
+    /*let buffer_content = buf.read().unwrap();
+    let image = ImageBuffer::<Rgba<u8>, _>::from_raw(16, 16, &buffer_content[..]).unwrap();
+    image.save("test2.png").unwrap();
+    println!("Done!");
+    let sl: [u8; 4] = buffer_content[0..4].try_into().unwrap();
+        println!("{:?}", sl);*/
+    
+    // LOAD SHADERS
+    let vs = vs::load(game.device.clone()).expect("failed to create vs module (your fault)").entry_point("main").unwrap();
+    let fs = fs::load(game.device.clone()).expect("failed to create fs module (your fault)").entry_point("main").unwrap();
+    game.push_shader(vs);
+    game.push_shader(fs);
+
+    // LOAD GEOMETRY
     let vertices = vec![
         engine::Vertex {
             position: [0.0, 0.0, 1.0],
+            uv: [0.0, 0.0],
+            tex_index: 0,
         },
         engine::Vertex {
             position: [0.0, 0.0, 0.0],
+            uv: [0.0, 1.0],
+            tex_index: 0,
         },
         engine::Vertex {
             position: [1.0, 0.0, 0.0],
+            uv: [1.0, 1.0],
+            tex_index: 0,
         },
         engine::Vertex {
             position: [1.0, 0.0, 1.0],
+            uv: [1.0, 0.0],
+            tex_index: 0,
         },
     ];
 
     let indices: Vec<u32> = vec![0, 1, 2, 2, 3, 0];;
     //vec![0, 1, 2, 2, 3, 0];
 
+    // PUSH BUFFERS
     let buffer_set = engine::BufferSet {
-        vertex_buffer: vk.alloc_vertex_buffer(vertices),
-        //normals_buffer: vk.alloc_vertex_buffer(normals),
-        index_buffer: vk.alloc_buffer_from_vector(indices, BufferUsage::INDEX_BUFFER, true),
-        uniform_buffer_allocator: vk.make_subbuffer_allocator(BufferUsage::UNIFORM_BUFFER),
+        vertex_buffer: game.alloc_vertex_buffer(vertices),
+        //normals_buffer: game.alloc_vertex_buffer(normals),
+        index_buffer: game.alloc_buffer_from_vector(indices, BufferUsage::INDEX_BUFFER, true),
+        uniform_buffer_allocator: game.make_subbuffer_allocator(BufferUsage::UNIFORM_BUFFER),
     };
-    vk.buffer_set = Some(Arc::new(buffer_set));
+    game.buffer_set = Some(Arc::new(buffer_set));
 
-    vk.create_pipeline();
+    // CREATE RENDERING PIPELINE
+    game.create_pipeline();
 
-    event_loop.run_app(&mut vk);
+
+    // START GAME
+    event_loop.run_app(&mut game);
 }
