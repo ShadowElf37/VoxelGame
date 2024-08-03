@@ -309,10 +309,10 @@ impl Game {
             .into_iter()
             .next()
             .unwrap();
-        let image_format = Format::R8G8B8A8_SRGB;
-        if physical_device.surface_formats(&surface, Default::default()).unwrap().iter().all(|x| x.0 != image_format) {
+        let image_format = physical_device.surface_formats(&surface, Default::default()).unwrap()[0].0;
+        /*if .iter().all(|x| x.0 != image_format) {
             panic!("Device doesn't support R8G8B8A8_SRGB. WHAT THE FUCK DO I DO :(")
-        }
+        }*/
         //println!("Using first color format of {:?}", physical_device.surface_formats(&surface, Default::default()).unwrap());
 
         let (mut swapchain, images) = Swapchain::new(
