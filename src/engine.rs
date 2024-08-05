@@ -955,11 +955,11 @@ impl Game {
             let (staging_buffer, staging_texture, texture) = self.create_image_load_chain(fp_vec, ImageUsage::SAMPLED);
 
             self.texture_arrays.push(ImageView::new_default(texture.clone()).unwrap());
-            stagetex_tex_pairs.push((staging_texture, texture.clone()));
+            stagetex_tex_pairs.push((staging_texture.clone(), texture.clone()));
 
             texture_upload_builder_stage1.copy_buffer_to_image(vulkano::command_buffer::CopyBufferToImageInfo::buffer_image(
                 staging_buffer.clone(),
-                texture.clone(),
+                staging_texture.clone(),
             )).unwrap();
         }
         for pair in stagetex_tex_pairs {

@@ -52,7 +52,7 @@ impl ApplicationHandler for engine::Game {
 
         match event {
             DeviceEvent::MouseMotion {delta} => {
-                println!("Mouse moved: {:?} {} {} {}", delta, self.world.game_state.in_game, self.world.game_state.paused, self.hold_cursor);
+                //println!("Mouse moved: {:?} {} {} {}", delta, self.world.game_state.in_game, self.world.game_state.paused, self.hold_cursor);
                 if self.world.game_state.in_game && !self.world.game_state.paused {
                     player.turn_horizontal(self.world.camera.look_sensitivity * delta.0 as f32);
                     player.turn_vertical(-self.world.camera.look_sensitivity * delta.1 as f32);
@@ -177,15 +177,15 @@ impl ApplicationHandler for engine::Game {
                 //self.textures.clear();
                 //self.load_texture("src/assets/textures/grass_block_side.png", &mut builder);
                 for layer in &self.ui_layers {
-                    self.text_manager.blit_all(&layer.texts, layer.buffer.clone().image().clone(), &mut builder);
+                    //self.text_manager.blit_all(&layer.texts, layer.buffer.clone().image().clone(), &mut builder);
                 }
                 
                 self.submit_graphics_pipeline(acquired_image_index, vec![WriteDescriptorSet::buffer(0, projdata_buffer)], &mut builder);
-                self.submit_ui_pipelines(acquired_image_index, &mut builder);
+                //self.submit_ui_pipelines(acquired_image_index, &mut builder);
                 
                 builder.end_render_pass(Default::default()).unwrap();
                 for layer in &self.ui_layers {
-                    builder.clear_color_image(ClearColorImageInfo::image(layer.buffer.clone().image().clone()));
+                    //builder.clear_color_image(ClearColorImageInfo::image(layer.buffer.clone().image().clone()));
                 }
 
                 let command_buffer = builder.build().unwrap();
