@@ -1,3 +1,4 @@
+use vulkano::command_buffer::ClearColorImageInfo;
 use image::ImageBuffer;
 use image::Rgba;
 use vulkano::command_buffer::CopyImageToBufferInfo;
@@ -48,8 +49,6 @@ impl ApplicationHandler for engine::Game {
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
         let mut player = self.world.entities[0].as_mut().unwrap();
-
-
 
         match event {
             DeviceEvent::MouseMotion {delta} => {
@@ -124,18 +123,16 @@ impl ApplicationHandler for engine::Game {
                 self.world.physics_step(self.clock.frame_time);
 
                 let player = self.world.entities[0].as_ref().unwrap();
-                println!(
+                self.ui_layers[0].texts[0].lock().unwrap().write(format!(
                     "Frame:{} Time:{:.3} Fps:{:.1} | X:{:.2} Y:{:.2} Z:{:.2} | W:{} H:{}",
                     self.clock.frame, self.clock.time, self.clock.fps, player.pos.x, player.pos.y, player.pos.z, self.dimensions[0], self.dimensions[1],
-                );
+                ));
 
                 if self.recreate_swapchain {
                     //println!("Swapchain regenerating!");
                     self.recreate_swapchain = false;
 
                     self.recreate_swapchain();
-                    self.create_framebuffers();
-                    self.create_pipeline();
                 }
 
                 // SET UP USER DATA TO PUSH TO GPU
@@ -179,43 +176,18 @@ impl ApplicationHandler for engine::Game {
                 // live load texture
                 //self.textures.clear();
                 //self.load_texture("src/assets/textures/grass_block_side.png", &mut builder);
-
-                // CREATE DESCRIPTOR_SET NEEDED TO ATTACH THE projdata_buffer
-                // can also be used to attach other buffers (vert and norm are handled directly in the command buffer)
-                // must be used to attach our textures
-                let mut desc_set_writers = self.get_texture_descriptor_set_writers();
-                desc_set_writers.push(WriteDescriptorSet::buffer(0, projdata_buffer));
-                let desc_set = self.create_descriptor_set(0, desc_set_writers);
-
-                let buffer_set = self.buffer_set.clone().unwrap();
-                builder
-                    .begin_render_pass(
-                        RenderPassBeginInfo {
-                            clear_values: vec![
-                                Some(self.world.sky_color.into()),
-                                Some(1f32.into()),
-                            ],
-                            ..RenderPassBeginInfo::framebuffer(
-                                self.framebuffers[acquired_image_index as usize].clone(),
-                            )
-                        },
-                        Default::default(),
-                    ).unwrap()
-                    .bind_pipeline_graphics(self.pipeline.clone().unwrap()).unwrap()
-                    .bind_descriptor_sets(
-                        PipelineBindPoint::Graphics,
-                        self.get_pipeline_layout(),
-                        0,
-                        desc_set,
-                    ).unwrap()
-                    .bind_vertex_buffers(0, buffer_set.vertex_buffer.clone()).unwrap()
-                    .bind_index_buffer(buffer_set.index_buffer.clone()).unwrap();
-
-                unsafe {
-                    builder.draw_indexed(buffer_set.index_buffer.len() as u32, 1, 0, 0, 0).unwrap();
+                for layer in &self.ui_layers {
+                    self.text_manager.blit_all(&layer.texts, layer.buffer.clone().image().clone(), &mut builder);
+                }
+                
+                self.submit_graphics_pipeline(acquired_image_index, vec![WriteDescriptorSet::buffer(0, projdata_buffer)], &mut builder);
+                self.submit_ui_pipelines(acquired_image_index, &mut builder);
+                
+                builder.end_render_pass(Default::default()).unwrap();
+                for layer in &self.ui_layers {
+                    builder.clear_color_image(ClearColorImageInfo::image(layer.buffer.clone().image().clone()));
                 }
 
-                builder.end_render_pass(Default::default()).unwrap();
                 let command_buffer = builder.build().unwrap();
 
                 // FUTURES
@@ -262,13 +234,27 @@ impl ApplicationHandler for engine::Game {
 mod vs {
     vulkano_shaders::shader! {
         ty: "vertex",
-        path: "src/vert.glsl"
+        path: "assets/shaders/vert.glsl"
     }
 }
 mod fs {
     vulkano_shaders::shader! {
         ty: "fragment",
-        path: "src/frag.glsl"
+        path: "assets/shaders/frag.glsl"
+    }
+}
+
+mod vs_ui1 {
+    vulkano_shaders::shader! {
+        ty: "vertex",
+        path: "assets/shaders/vs_ui1.glsl"
+    }
+}
+
+mod fs_ui1 {
+    vulkano_shaders::shader! {
+        ty: "fragment",
+        path: "assets/shaders/fs_ui1.glsl"
     }
 }
 
@@ -284,18 +270,22 @@ fn main() {
 
 
     // LOAD TEXTURES
-    println!("Loading textures...");
-    game.load_textures_now(
-        None,
-        Some(vec![
+    let mut texture_upload_builder_stage1 = game.create_command_buffer_builder();
+    let mut texture_upload_builder_stage2 = game.create_command_buffer_builder();
+    game.load_texture_arrays(
+        vec![
             vec![
                 "assets/textures/grass_block_side.png",
                 "assets/textures/grass_block_top.png",
                 "assets/textures/dirt.png",
             ]
-        ])
-    );
-    println!("Loaded!");
+        ], &mut texture_upload_builder_stage1, &mut texture_upload_builder_stage2);
+    
+    game.load_font_pngs("assets/font/", &mut texture_upload_builder_stage1, &mut texture_upload_builder_stage2);
+    println!("Loading textures and fonts...");
+    game.submit_command_buffer_builder(texture_upload_builder_stage1).wait(None).unwrap();
+    game.submit_command_buffer_builder(texture_upload_builder_stage2).wait(None).unwrap();
+    println!("Loaded textures and fonts successfully.");
 
 
     // LOAD SHADERS
@@ -303,6 +293,13 @@ fn main() {
     let fs = fs::load(game.device.clone()).expect("failed to create fs module (your fault)").entry_point("main").unwrap();
     game.push_shader(vs);
     game.push_shader(fs);
+
+    let vs_ui1 = vs_ui1::load(game.device.clone()).expect("failed to create ui1 vs module (your fault)").entry_point("main").unwrap();
+    let fs_ui1 = fs_ui1::load(game.device.clone()).expect("failed to create ui1 fs module (your fault)").entry_point("main").unwrap();
+    let ui_layer = engine::UILayer::new(&mut game, vs_ui1,fs_ui1);
+    game.ui_layers.push(ui_layer);
+    let debug_text = engine::TextObj::new(String::new(), 10, 10, 2.0);
+    game.ui_layers[0].texts.push(debug_text.clone());
 
     // LOAD GEOMETRY
     let vertices = vec![
@@ -461,12 +458,19 @@ fn main() {
         //normals_buffer: game.alloc_vertex_buffer(normals),
         index_buffer: game.alloc_buffer_from_vector(indices, BufferUsage::INDEX_BUFFER, true),
         uniform_buffer_allocator: game.make_subbuffer_allocator(BufferUsage::UNIFORM_BUFFER),
+        ui_vertex_buffer: game.alloc_vertex_buffer(vec![
+            engine::Vertex2D {pos: [-1.0, -1.0]},
+            engine::Vertex2D {pos: [-1.0, 1.0]},
+            engine::Vertex2D {pos: [1.0, 1.0]},
+            engine::Vertex2D {pos: [1.0, 1.0]},
+            engine::Vertex2D {pos: [1.0, -1.0]},
+            engine::Vertex2D {pos: [-1.0, -1.0]},
+        ]),
     };
     game.buffer_set = Some(Arc::new(buffer_set));
 
     // CREATE RENDERING PIPELINE
-    game.create_pipeline();
-
+    game.create_all_pipelines();
 
     // START GAME
     event_loop.run_app(&mut game);

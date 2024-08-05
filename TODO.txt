@@ -1,12 +1,13 @@
--texture a cube
 
+- barriers for texture loading
+- second render pass for UI
+- generate cube faces, and instancing, only send block or tex ID to gpu
+- transparency pass?
 
-- don't re-allocate uniform buffer every frame?
-- text
 - frame in flight
 - pause menu (note: due to current lack of pause condition for keybinds, some bugs with cursor behavior)
 - fog
-- instancing, only send block ID to gpu
+
 
 
 
