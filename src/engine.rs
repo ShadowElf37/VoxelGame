@@ -411,7 +411,7 @@ impl Game {
     }
     fn get_render_pass(device: Arc<Device>, image_format: Format) -> Arc<RenderPass> {
         use vulkano::render_pass::{RenderPass, RenderPassCreateInfo, AttachmentDescription, SubpassDescription, SubpassDependency};
-        RenderPass {
+        /*RenderPass {
             device.clone(),
             device.
             RenderPassCreateInfo {
@@ -421,7 +421,7 @@ impl Game {
                     }
                 ]
             }
-        };
+        };*/
 
         vulkano::single_pass_renderpass!(
             device.clone(),
