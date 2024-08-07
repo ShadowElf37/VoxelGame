@@ -279,7 +279,8 @@ fn main() {
                 "assets/textures/grass_block_top.png",
                 "assets/textures/dirt.png",
             ]
-        ], &mut texture_upload_builder_stage1, &mut texture_upload_builder_stage2);
+        ], &mut texture_upload_builder_stage1, &mut texture_upload_builder_stage2
+    );
     
     game.load_font_pngs("assets/font/", &mut texture_upload_builder_stage1, &mut texture_upload_builder_stage2);
     println!("Loading textures and fonts...");
