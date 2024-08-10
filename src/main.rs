@@ -138,11 +138,15 @@ impl ApplicationHandler for Game<'_> {
             WindowEvent::RedrawRequested => {
                 //self.renderer.update();
                 self.clock.tick();
+                let facing = player.facing_in_degrees();
                 self.renderer.text_manager.set_text_on(
                     0,
                     format!(
-                        "Frame:{} Time:{:.3} Fps:{:.1} | X:{:.2} Y:{:.2} Z:{:.2} | W:{} H:{}",
-                        self.clock.tick, self.clock.time, self.clock.tps, player.pos.x, player.pos.y, player.pos.z, self.renderer.size.width, self.renderer.size.height,
+                        "Frame:{} Time:{:.3} Fps:{:.1}\nX={:.2} Y={:.2} Z={:.2})\nφ={:.0}° ϴ={:.0}°\nW:{} H:{}",
+                        self.clock.tick, self.clock.time, self.clock.tps,
+                        player.pos.x, player.pos.y, player.pos.z,
+                        facing.x, facing.y,
+                        self.renderer.size.width, self.renderer.size.height,
                     ).as_str()
                 );
                 

@@ -55,7 +55,7 @@ impl Entity {
     pub fn facing_in_degrees(&self) -> Vec2 {
         Vec2::new(
             self.facing.z.asin() / DEG_TO_RAD, // vertical
-            self.facing.x.acos() / DEG_TO_RAD, // horizontal
+            self.facing.y.atan2(self.facing.x) / DEG_TO_RAD, // horizontal
         )
     }
     pub fn get_rightward_vector(&self) -> Vec3 {
