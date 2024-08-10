@@ -151,7 +151,9 @@ pub struct Renderer<'a> {
     surface_config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
     pub aspect_ratio: f32,
+    pub window_center_px: winit::dpi::PhysicalPosition<u32>,
     pub ui_scale: f32,
+    pub ui_scale_manual_adjust: f32,
 
     pub camera: camera::Camera,
 
@@ -290,7 +292,9 @@ impl<'a> Renderer<'a> {
             surface_config,
             size,
             aspect_ratio,
-            ui_scale: window.scale_factor() as f32,
+            window_center_px: winit::dpi::PhysicalPosition::new(size.width/2, size.height/2),
+            ui_scale: size.height as f32 / 600.0,
+            ui_scale_manual_adjust: 1.0,
 
             camera: camera::Camera::new(aspect_ratio),
 
@@ -377,6 +381,8 @@ impl<'a> Renderer<'a> {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.aspect_ratio = self.size.width as f32 / self.size.height as f32;
+            self.window_center_px = winit::dpi::PhysicalPosition::new(self.size.width/2, self.size.height/2);
+            self.ui_scale = self.ui_scale_manual_adjust * self.size.height as f32 / 600.0;
 
             self.text_manager.on_resize(new_size, self.ui_scale);
             self.text_manager.viewport.update(

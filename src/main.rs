@@ -62,18 +62,24 @@ impl Game<'_> {
     }
 
     pub fn on_focus(&mut self) {
+        let window = self.window.clone().unwrap();
+        let renderer = self.renderer.as_ref().unwrap();
+
         self.hold_cursor = true;
-        self.window.clone().unwrap().set_cursor_visible(false);
-        let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
-        self.window.clone().unwrap().set_cursor_position(snap_to).unwrap();
+        window.set_cursor_visible(false);
+
+        let snap_to = winit::dpi::PhysicalPosition::new(renderer.size.width/2, renderer.size.height/2);
+        window.set_cursor_position(snap_to).unwrap();
         #[cfg(target_os = "macos")]
-        self.window.clone().unwrap().set_cursor_grab(winit::window::CursorGrabMode::Locked);
+        window.set_cursor_grab(winit::window::CursorGrabMode::Locked);
     }
     pub fn on_defocus(&mut self) {
+        let window = self.window.clone().unwrap();
         self.hold_cursor = false;
-        self.window.clone().unwrap().set_cursor_visible(true);
+        window.set_cursor_visible(true);
+
         #[cfg(target_os = "macos")]
-        self.window.clone().unwrap().set_cursor_grab(winit::window::CursorGrabMode::None);
+        window.set_cursor_grab(winit::window::CursorGrabMode::None);
     }
 }
 
@@ -90,136 +96,127 @@ impl ApplicationHandler for Game<'_> {
     }
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
-        if self.renderer.is_none() {return;}
+        match (self.window.clone(), &mut self.renderer) {
+            (Some(window), Some(renderer)) => {
+                let player = &mut self.world.player;
 
-        let player = &mut self.world.player;
-
-        match event {
-            DeviceEvent::MouseMotion {delta} => {
-                if self.game_state.in_game && !self.game_state.paused {
-                    player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.0 as f32);
-                    player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
+                match event {
+                    DeviceEvent::MouseMotion {delta} => {
+                        if self.game_state.in_game && !self.game_state.paused {
+                            player.turn_horizontal(renderer.camera.look_sensitivity * delta.0 as f32);
+                            player.turn_vertical(renderer.camera.look_sensitivity * delta.1 as f32);
+                        }
+                        if !cfg!(target_os = "macos") {
+                            
+                            if self.hold_cursor {
+                                let snap_to = winit::dpi::PhysicalPosition::new(renderer.size.width/2, renderer.size.height/2);
+                                window.set_cursor_position(snap_to).unwrap();
+                            }
+                        }
+                        //println!("Mouse moved: {:?} {} {} {}", delta, self.game_state.in_game, self.game_state.paused, self.hold_cursor);
+                    },
+                    _ => ()
                 }
-                if !cfg!(target_os = "macos") {
-                    
-                    if self.hold_cursor {
-                        let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
-                        self.window.clone().unwrap().set_cursor_position(snap_to).unwrap();
-                    }
-                }
-                //println!("Mouse moved: {:?} {} {} {}", delta, self.game_state.in_game, self.game_state.paused, self.hold_cursor);
-            },
+            }
             _ => ()
         }
+
+        
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
-        if self.renderer.is_none() {return;}
+        match (self.window.clone(), &mut self.renderer) {
+            (Some(window), Some(renderer)) => {
 
-        let player = &mut self.world.player;
+                let player = &mut self.world.player;
 
-        match event {
-            WindowEvent::CursorMoved { position, .. } => {
-                if false {
-                    let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
-                    let delta = (position.x - snap_to.x as f64, position.y - snap_to.y as f64);
+                match event {
+                    WindowEvent::CursorMoved { position, .. } => { }
 
-                    if self.game_state.in_game && !self.game_state.paused {
-                        player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.0 as f32);
-                        player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
+                    WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
+                        match physical_key {
+                            PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = true;}
+                            PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = true;}
+                            PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = true;}
+                            PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = true;}
+                            PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = true;}
+                            PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = true;}
+
+                            PhysicalKey::Code(KeyCode::Escape) => {
+                                if self.game_state.paused {
+                                    self.on_focus();
+                                } else {
+                                    self.on_defocus();
+                                }
+                                self.game_state.paused = !self.game_state.paused;             
+                            }
+                            _ => ()
+                        }
                     }
-                    if self.hold_cursor {
-                        self.window.clone().unwrap().set_cursor_position(snap_to).unwrap();
+                    WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Released, repeat:false, ..}, is_synthetic: false, ..} => {
+                        match physical_key {
+                            PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = false;}
+                            PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = false;}
+                            PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = false;}
+                            PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = false;}
+                            PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = false;}
+                            PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = false;}
+                            _ => ()
+                        }
                     }
-                }
-            }
 
-            WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
-                match physical_key {
-                    PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = true;}
-                    PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = true;}
-                    PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = true;}
-                    PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = true;}
-                    PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = true;}
-                    PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = true;}
-
-                    PhysicalKey::Code(KeyCode::Escape) => {
-                        if self.game_state.paused {
+                    WindowEvent::CloseRequested => {
+                        println!("User exited.");
+                        event_loop.exit();
+                    },
+                    WindowEvent::Resized(physical_size) => {
+                        renderer.resize(physical_size);
+                    }
+                    //WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
+                    //    renderer.ui_scale = scale_factor as f32;
+                    //}
+                    WindowEvent::Focused(f) => {
+                        if f {
                             self.on_focus();
                         } else {
                             self.on_defocus();
                         }
-                        self.game_state.paused = !self.game_state.paused;             
                     }
-                    _ => ()
-                }
-            }
-            WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Released, repeat:false, ..}, is_synthetic: false, ..} => {
-                match physical_key {
-                    PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = false;}
-                    PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = false;}
-                    PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = false;}
-                    PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = false;}
-                    PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = false;}
-                    PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = false;}
-                    _ => ()
-                }
-            }
+                    // ...
+                    WindowEvent::RedrawRequested => {
+                        self.clock.tick();
 
-            WindowEvent::CloseRequested => {
-                println!("User exited.");
-                event_loop.exit();
-            },
-            WindowEvent::Resized(physical_size) => {
-                if self.renderer.is_some() {
-                    self.renderer.as_mut().unwrap().ui_scale = physical_size.height as f32 / 600.0;
-                    self.renderer.as_mut().unwrap().resize(physical_size);
-                }
-                
-            }
-            WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
-                self.renderer.as_mut().unwrap().ui_scale = scale_factor as f32;
-            }
-            WindowEvent::Focused(f) => {
-                if f {
-                    self.on_focus();
-                } else {
-                    self.on_defocus();
-                }
-            }
-            // ...
-            WindowEvent::RedrawRequested => {
-                self.clock.tick();
+                        if self.clock.tick % 5 == 0 {
+                            let facing = player.facing_in_degrees();
+                            renderer.text_manager.set_text_on(
+                                0,
+                                format!(
+                                    "Frame:{} Time:{:.3} Fps:{:.1}\nX={:.2} Y={:.2} Z={:.2}\nφ={:.0}° ϴ={:.0}°\nW:{} H:{}\nPAUSED = {}",
+                                    self.clock.tick, self.clock.time, self.clock.tps,
+                                    player.pos.x, player.pos.y, player.pos.z,
+                                    facing.x, facing.y,
+                                    renderer.size.width, renderer.size.height,
+                                    self.game_state.paused
+                                ).as_str()
+                            );
+                        }
+                        
+                        self.world.physics_step(self.clock.tick_time);
 
-                if self.clock.tick % 5 == 0 {
-                    let facing = player.facing_in_degrees();
-                    let size = self.renderer.as_ref().unwrap().size;
-                    self.renderer.as_mut().unwrap().text_manager.set_text_on(
-                        0,
-                        format!(
-                            "Frame:{} Time:{:.3} Fps:{:.1}\nX={:.2} Y={:.2} Z={:.2}\nφ={:.0}° ϴ={:.0}°\nW:{} H:{}\nPAUSED = {}",
-                            self.clock.tick, self.clock.time, self.clock.tps,
-                            player.pos.x, player.pos.y, player.pos.z,
-                            facing.x, facing.y,
-                            size.width, size.height,
-                            self.game_state.paused
-                        ).as_str()
-                    );
+                        match renderer.render(&self.world) {
+                            Ok(_) => {}
+                            // Reconfigure the surface if lost
+                            Err(wgpu::SurfaceError::Lost) => {
+                                let size = renderer.size;
+                                renderer.resize(size);
+                            },
+                            // All other errors (Outdated, Timeout) should be resolved by the next frame
+                            Err(e) => eprintln!("{:?}", e),
+                        }
+                        window.request_redraw();
+                    }
+                    _ => (),
                 }
-                
-                self.world.physics_step(self.clock.tick_time);
-
-                match self.renderer.as_mut().unwrap().render(&self.world) {
-                    Ok(_) => {}
-                    // Reconfigure the surface if lost
-                    Err(wgpu::SurfaceError::Lost) => {
-                        let size = self.renderer.as_ref().unwrap().size;
-                        self.renderer.as_mut().unwrap().resize(size);
-                    },
-                    // All other errors (Outdated, Timeout) should be resolved by the next frame
-                    Err(e) => eprintln!("{:?}", e),
-                }
-                self.window.clone().unwrap().request_redraw();
             }
             _ => (),
         }
@@ -227,15 +224,12 @@ impl ApplicationHandler for Game<'_> {
 
 }
 
-async fn run() {
+
+fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut game = Game::new(&event_loop).await;
+    let mut game = pollster::block_on(Game::new(&event_loop));
     
     event_loop.run_app(&mut game).unwrap();
-}
-
-fn main() {
-    pollster::block_on(run());
 }
