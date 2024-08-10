@@ -41,6 +41,7 @@ impl TextObject {
     }
 
     pub fn get_text_area(&self, tm: &TextManager) -> glyphon::TextArea {
+        println!("{:?}", tm.ui_scale);
         glyphon::TextArea {
             buffer: &self.buffer,
             left: self.x,
@@ -81,7 +82,7 @@ impl TextManager {
         let swash_cache = glyphon::SwashCache::new();
         let cache = glyphon::Cache::new(device);
         let viewport = glyphon::Viewport::new(device, &cache);
-        let mut atlas = glyphon::TextAtlas::new(device, queue, &cache, surface_format);
+        let mut atlas = glyphon::TextAtlas::with_color_mode(device, queue, &cache, surface_format, glyphon::ColorMode::Accurate);
         let text_renderer = glyphon::TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
 
         //println!("{:?}", font_system.get_font_matches(glyphon::Attrs::new().family(glyphon::Family::Name("asjkdhgasjdhgas"))));
