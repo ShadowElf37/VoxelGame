@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use crate::texturing;
 use wgpu::BufferDescriptor;
 use crate::world;
@@ -39,11 +40,6 @@ impl TextObject {
         }
     }
 
-    pub fn set_text(&mut self, text: &str, tm: &mut TextManager) {
-        self.buffer.set_text(&mut tm.font_system, text, glyphon::Attrs::new(), glyphon::Shaping::Advanced);
-        self.buffer.shape_until_scroll(&mut tm.font_system, false);
-    }
-
     pub fn get_text_area(&self, tm: &TextManager) -> glyphon::TextArea {
         glyphon::TextArea {
             buffer: &self.buffer,
@@ -56,7 +52,7 @@ impl TextObject {
                 right: tm.screen_size.0 as i32,
                 bottom: tm.screen_size.1 as i32,
             },
-            default_color: glyphon::Color::rgb(255, 255, 255),
+            default_color: glyphon::Color::rgb(0, 0, 0),
         }
     }
 }
@@ -76,6 +72,10 @@ pub struct TextManager {
 }
 impl TextManager {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, screen_size: winit::dpi::PhysicalSize<u32>) -> Self {
+        println!("{:?}",
+            std::fs::read_dir("assets/fonts/").unwrap().map(|path| path.unwrap().path()).collect::<Vec<PathBuf>>()
+        );
+
         let fonts_to_load = std::fs::read_dir("assets/fonts/").unwrap().map(|path| glyphon::cosmic_text::fontdb::Source::File(path.unwrap().path()));
         let font_system = glyphon::FontSystem::new_with_fonts(fonts_to_load);
         let swash_cache = glyphon::SwashCache::new();
@@ -83,6 +83,8 @@ impl TextManager {
         let viewport = glyphon::Viewport::new(device, &cache);
         let mut atlas = glyphon::TextAtlas::new(device, queue, &cache, surface_format);
         let text_renderer = glyphon::TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
+
+        //println!("{:?}", font_system.get_font_matches(glyphon::Attrs::new().family(glyphon::Family::Name("asjkdhgasjdhgas"))));
 
         Self {
             font_system,
@@ -105,7 +107,7 @@ impl TextManager {
     }
     pub fn set_text_on(&mut self, index: usize, text: &str) {
         let to = &mut self.text_objects[index];
-        to.buffer.set_text(&mut self.font_system, text, glyphon::Attrs::new(), glyphon::Shaping::Advanced);
+        to.buffer.set_text(&mut self.font_system, text, glyphon::Attrs::new().family(glyphon::Family::Name("BigBlueTermPlus Nerd Font Mono")), glyphon::Shaping::Basic);
         to.buffer.shape_until_scroll(&mut self.font_system, false);
     }
 

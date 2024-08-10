@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "VulkanTest"
+name = "VoxelGame"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
