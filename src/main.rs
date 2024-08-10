@@ -37,8 +37,8 @@ struct Game<'a> {
 
 impl Game<'_> {
     pub async fn new(event_loop: &EventLoop<()>) -> Self {
-        let window = Arc::new(event_loop.create_window(Window::default_attributes()).unwrap());
-        window.set_title("Minecraft");
+        //let window = Arc::new(event_loop.create_window(Window::default_attributes()).unwrap());
+        
 
         Game {
             game_state: GameState {
@@ -70,6 +70,7 @@ impl Game<'_> {
 impl ApplicationHandler for Game<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.window = Some(Arc::new(event_loop.create_window(Window::default_attributes()).unwrap()));
+        self.window.clone().unwrap().set_title("Minecraft");
         self.renderer = Some(pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap())));
         self.renderer.as_mut().unwrap().load_texture_set(vec![
             r"assets/textures/cobblestone.png"
@@ -77,6 +78,8 @@ impl ApplicationHandler for Game<'_> {
     }
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+        if self.renderer.is_none() {return;}
+
         let player = &mut self.world.player;
 
         match event {
@@ -95,7 +98,10 @@ impl ApplicationHandler for Game<'_> {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        if self.renderer.is_none() {return;}
+
         let player = &mut self.world.player;
+
         match event {
             WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
                 match physical_key {
@@ -134,11 +140,16 @@ impl ApplicationHandler for Game<'_> {
                 event_loop.exit();
             },
             WindowEvent::Resized(physical_size) => {
-                self.renderer.as_mut().unwrap().ui_scale = physical_size.height as f32 / 600.0;
-                self.renderer.as_mut().unwrap().resize(physical_size);
+                if self.renderer.is_some() {
+                    self.renderer.as_mut().unwrap().ui_scale = physical_size.height as f32 / 600.0;
+                    self.renderer.as_mut().unwrap().resize(physical_size);
+                }
+                
             }
             WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
-                self.renderer.as_mut().unwrap().ui_scale = scale_factor as f32;
+                if self.renderer.is_some() {
+                    self.renderer.as_mut().unwrap().ui_scale = scale_factor as f32;
+                }
             }
             WindowEvent::Focused(f) => {
                 if f {
