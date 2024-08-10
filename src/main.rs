@@ -64,10 +64,16 @@ impl Game<'_> {
     pub fn on_focus(&mut self) {
         self.hold_cursor = true;
         self.window.clone().unwrap().set_cursor_visible(false);
+        let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
+        self.window.clone().unwrap().set_cursor_position(snap_to).unwrap();
+        #[cfg(target_os = "macos")]
+        self.window.clone().unwrap().set_cursor_grab(winit::window::CursorGrabMode::Locked);
     }
     pub fn on_defocus(&mut self) {
         self.hold_cursor = false;
         self.window.clone().unwrap().set_cursor_visible(true);
+        #[cfg(target_os = "macos")]
+        self.window.clone().unwrap().set_cursor_grab(winit::window::CursorGrabMode::None);
     }
 }
 
@@ -90,11 +96,12 @@ impl ApplicationHandler for Game<'_> {
 
         match event {
             DeviceEvent::MouseMotion {delta} => {
+                if self.game_state.in_game && !self.game_state.paused {
+                    player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.0 as f32);
+                    player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
+                }
                 if !cfg!(target_os = "macos") {
-                    if self.game_state.in_game && !self.game_state.paused {
-                        player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.0 as f32);
-                        player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
-                    }
+                    
                     if self.hold_cursor {
                         let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
                         self.window.clone().unwrap().set_cursor_position(snap_to).unwrap();
@@ -113,7 +120,7 @@ impl ApplicationHandler for Game<'_> {
 
         match event {
             WindowEvent::CursorMoved { position, .. } => {
-                if cfg!(target_os = "macos") {
+                if false {
                     let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
                     let delta = (position.x - snap_to.x as f64, position.y - snap_to.y as f64);
 
