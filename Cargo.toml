@@ -1,0 +1,18 @@
+[package]
+name = "VulkanTest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+winit =  {version = "0.30.4", features = ["rwh_05"]}
+image = "0.25.2"
+glam = "0.28.0"
+wgpu = "22.1.0"
+env_logger = "0.10"
+log = "0.4"
+pollster = "0.3"
+bytemuck = { version = "1.16", features = [ "derive" ] }
+glyphon = { git = "https://github.com/grovesNL/glyphon.git" }
+
+[profile.dev]
+opt-level = 1
