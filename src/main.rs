@@ -76,6 +76,7 @@ impl ApplicationHandler for Game<'_> {
             r"assets/textures/cobblestone.png"
         ]);
         self.window.clone().unwrap().request_redraw();
+        self.window.clone().unwrap().focus_window();
     }
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
@@ -91,7 +92,7 @@ impl ApplicationHandler for Game<'_> {
                     player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
                 }
                 if self.hold_cursor {
-                    self.window.clone().unwrap().set_cursor_position(winit::dpi::LogicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2)).unwrap();
+                    self.window.clone().unwrap().set_cursor_position(winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2)).unwrap();
                 }
             },
             _ => ()
@@ -148,9 +149,7 @@ impl ApplicationHandler for Game<'_> {
                 
             }
             WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
-                if self.renderer.is_some() {
-                    self.renderer.as_mut().unwrap().ui_scale = scale_factor as f32;
-                }
+                self.renderer.as_mut().unwrap().ui_scale = scale_factor as f32;
             }
             WindowEvent::Focused(f) => {
                 if f {
@@ -184,7 +183,10 @@ impl ApplicationHandler for Game<'_> {
                 match self.renderer.as_mut().unwrap().render(&self.world) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost
-                    Err(wgpu::SurfaceError::Lost) => {let size = self.renderer.as_ref().unwrap().size; self.renderer.as_mut().unwrap().resize(size)},
+                    Err(wgpu::SurfaceError::Lost) => {
+                        let size = self.renderer.as_ref().unwrap().size;
+                        self.renderer.as_mut().unwrap().resize(size);
+                    },
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
                     Err(e) => eprintln!("{:?}", e),
                 }
