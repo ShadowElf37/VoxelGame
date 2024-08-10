@@ -75,6 +75,7 @@ impl ApplicationHandler for Game<'_> {
         self.renderer.as_mut().unwrap().load_texture_set(vec![
             r"assets/textures/cobblestone.png"
         ]);
+        self.window.clone().unwrap().request_redraw();
     }
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
