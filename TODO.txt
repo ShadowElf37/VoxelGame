@@ -1,0 +1,30 @@
+
+- barriers for texture loading
+- second render pass for UI
+- generate cube faces, and instancing, only send block or tex ID to gpu
+- transparency pass?
+
+- frame in flight
+- pause menu (note: due to current lack of pause condition for keybinds, some bugs with cursor behavior)
+- fog
+
+
+
+
+
+lighting, physics in thread
+own their own clocks (change nomenclature to "tick" instead of "frame")
+have internal fences to rate limit
+access lighting array and e.pos/e.vel (or make a new e.PhysState) using mutex
+event_loop accesses mutexes more/less often than they're written to
+
+
+cpu/compute calculates visible FACES
+GPU instance the faces, have an array on gpu of visible faces with texture ids
+
+saving chunks is just block_id,BlockProto does most of the work
+
+camera at 1.8m
+
+
+

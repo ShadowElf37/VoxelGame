@@ -41,7 +41,7 @@ impl TextObject {
     }
 
     pub fn get_text_area(&self, tm: &TextManager) -> glyphon::TextArea {
-        println!("{:?}", tm.ui_scale);
+        //println!("{:?}", tm.ui_scale);
         glyphon::TextArea {
             buffer: &self.buffer,
             left: self.x,
@@ -57,7 +57,6 @@ impl TextObject {
         }
     }
 }
-
 pub struct TextManager {
     font_system: glyphon::FontSystem,
     swash_cache: glyphon::SwashCache,
@@ -278,6 +277,7 @@ impl<'a> Renderer<'a> {
         let texture_bind_group_layout = device.create_bind_group_layout(&texturing::TEXTURE_SET_LAYOUT_DESC);
 
         //let pipeline = Self::create_main_pipeline(&device, &shader, &pipeline_layout, &surface_config);
+        println!("Loading fonts...");
         let mut text_manager = TextManager::new(&device, &queue, surface_format, size);
         text_manager.new_text_object(12.0, 10.0, 10.0);
 
@@ -369,6 +369,7 @@ impl<'a> Renderer<'a> {
     }
 
     pub fn load_texture_set(&mut self, fp_vec: Vec<&str>) {
+        println!("Loading texture set...");
         self.texture_sets.push(texturing::TextureSet::from_fp_vec(&self.device, &self.queue, &self.texture_bind_group_layout, fp_vec))
     }
 

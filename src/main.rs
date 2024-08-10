@@ -27,9 +27,10 @@ pub struct GameState {
 struct Game<'a> {
     pub game_state: GameState,
 
-    window: Arc<Window>,
+    window: Option<Arc<Window>>,
+    renderer: Option<renderer::Renderer<'a>>,
+
     hold_cursor: bool,
-    renderer: renderer::Renderer<'a>,
     world: world::World,
     clock: clock::Clock,
 }
@@ -45,9 +46,12 @@ impl Game<'_> {
                 in_game: true,
             },
 
-            window: window.clone(),
+            window: None,
+            renderer: None,
+            //window: window.clone(),
+            //renderer: renderer::Renderer::new(window.clone()).await,
+
             hold_cursor: true,
-            renderer: renderer::Renderer::new(window.clone()).await,
             world: world::World::new(),
             clock: clock::Clock::new(),
         }
@@ -55,15 +59,23 @@ impl Game<'_> {
 
     pub fn on_focus(&mut self) {
         self.hold_cursor = true;
-        self.window.set_cursor_visible(false);
+        self.window.clone().unwrap().set_cursor_visible(false);
     }
     pub fn on_defocus(&mut self) {
         self.hold_cursor = false;
-        self.window.set_cursor_visible(true);
+        self.window.clone().unwrap().set_cursor_visible(true);
     }
 }
 
 impl ApplicationHandler for Game<'_> {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.window = Some(Arc::new(event_loop.create_window(Window::default_attributes()).unwrap()));
+        self.renderer = Some(pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap())));
+        self.renderer.as_mut().unwrap().load_texture_set(vec![
+            r"assets/textures/cobblestone.png"
+        ]);
+    }
+
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
         let player = &mut self.world.player;
 
@@ -71,11 +83,11 @@ impl ApplicationHandler for Game<'_> {
             DeviceEvent::MouseMotion {delta} => {
                 //println!("Mouse moved: {:?} {} {} {}", delta, self.game_state.in_game, self.game_state.paused, self.hold_cursor);
                 if self.game_state.in_game && !self.game_state.paused {
-                    player.turn_horizontal(self.renderer.camera.look_sensitivity * delta.0 as f32);
-                    player.turn_vertical(self.renderer.camera.look_sensitivity * delta.1 as f32);
+                    player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.0 as f32);
+                    player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
                 }
                 if self.hold_cursor {
-                    self.window.set_cursor_position(winit::dpi::LogicalPosition::new(self.renderer.size.width/2, self.renderer.size.height/2)).unwrap();
+                    self.window.clone().unwrap().set_cursor_position(winit::dpi::LogicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2)).unwrap();
                 }
             },
             _ => ()
@@ -122,11 +134,11 @@ impl ApplicationHandler for Game<'_> {
                 event_loop.exit();
             },
             WindowEvent::Resized(physical_size) => {
-                self.renderer.ui_scale = physical_size.height as f32 / 600.0;
-                self.renderer.resize(physical_size);
+                self.renderer.as_mut().unwrap().ui_scale = physical_size.height as f32 / 600.0;
+                self.renderer.as_mut().unwrap().resize(physical_size);
             }
             WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
-                self.renderer.ui_scale = scale_factor as f32;
+                self.renderer.as_mut().unwrap().ui_scale = scale_factor as f32;
             }
             WindowEvent::Focused(f) => {
                 if f {
@@ -141,14 +153,15 @@ impl ApplicationHandler for Game<'_> {
 
                 if self.clock.tick % 5 == 0 {
                     let facing = player.facing_in_degrees();
-                    self.renderer.text_manager.set_text_on(
+                    let size = self.renderer.as_ref().unwrap().size;
+                    self.renderer.as_mut().unwrap().text_manager.set_text_on(
                         0,
                         format!(
                             "Frame:{} Time:{:.3} Fps:{:.1}\nX={:.2} Y={:.2} Z={:.2}\nφ={:.0}° ϴ={:.0}°\nW:{} H:{}\nPAUSED = {}",
                             self.clock.tick, self.clock.time, self.clock.tps,
                             player.pos.x, player.pos.y, player.pos.z,
                             facing.x, facing.y,
-                            self.renderer.size.width, self.renderer.size.height,
+                            size.width, size.height,
                             self.game_state.paused
                         ).as_str()
                     );
@@ -156,20 +169,19 @@ impl ApplicationHandler for Game<'_> {
                 
                 self.world.physics_step(self.clock.tick_time);
 
-                match self.renderer.render(&self.world) {
+                match self.renderer.as_mut().unwrap().render(&self.world) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost
-                    Err(wgpu::SurfaceError::Lost) => self.renderer.resize(self.renderer.size),
+                    Err(wgpu::SurfaceError::Lost) => {let size = self.renderer.as_ref().unwrap().size; self.renderer.as_mut().unwrap().resize(size)},
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
                     Err(e) => eprintln!("{:?}", e),
                 }
-                self.window.request_redraw();
+                self.window.clone().unwrap().request_redraw();
             }
             _ => (),
         }
     }
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {}
 }
 
 async fn run() {
@@ -177,9 +189,7 @@ async fn run() {
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut game = Game::new(&event_loop).await;
-    game.renderer.load_texture_set(vec![
-        r"assets\textures\cobblestone.png"
-    ]);
+    
     event_loop.run_app(&mut game).unwrap();
 }
 
