@@ -90,19 +90,7 @@ impl ApplicationHandler for Game<'_> {
 
         match event {
             DeviceEvent::MouseMotion {delta} => {
-                if cfg!(target_os = "macos") {
-                    let delta_good = (delta.0 - self.cursor_moved_by.0, delta.1 - self.cursor_moved_by.1);
-
-                    if self.game_state.in_game && !self.game_state.paused {
-                        player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta_good.0 as f32);
-                        player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta_good.1 as f32);
-                    }
-                    if self.hold_cursor {
-                        self.cursor_moved_by = (-delta.0, -delta.1);
-                        let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
-                        self.window.clone().unwrap().set_cursor_position(snap_to).unwrap();
-                    }
-                } else {
+                if !cfg!(target_os = "macos") {
                     if self.game_state.in_game && !self.game_state.paused {
                         player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.0 as f32);
                         player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
@@ -113,7 +101,6 @@ impl ApplicationHandler for Game<'_> {
                     }
                 }
                 //println!("Mouse moved: {:?} {} {} {}", delta, self.game_state.in_game, self.game_state.paused, self.hold_cursor);
-                
             },
             _ => ()
         }
@@ -125,6 +112,21 @@ impl ApplicationHandler for Game<'_> {
         let player = &mut self.world.player;
 
         match event {
+            WindowEvent::CursorMoved { position, .. } => {
+                if cfg!(target_os = "macos") {
+                    let snap_to = winit::dpi::PhysicalPosition::new(self.renderer.as_ref().unwrap().size.width/2, self.renderer.as_ref().unwrap().size.height/2);
+                    let delta = (position.x - snap_to.x as f64, position.y - snap_to.y as f64);
+
+                    if self.game_state.in_game && !self.game_state.paused {
+                        player.turn_horizontal(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.0 as f32);
+                        player.turn_vertical(self.renderer.as_mut().unwrap().camera.look_sensitivity * delta.1 as f32);
+                    }
+                    if self.hold_cursor {
+                        self.window.clone().unwrap().set_cursor_position(snap_to).unwrap();
+                    }
+                }
+            }
+
             WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
                 match physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = true;}
