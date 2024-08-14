@@ -72,7 +72,7 @@ pub struct TextManager {
     text_objects: Vec<TextObject>
 }
 impl TextManager {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, screen_size: winit::dpi::PhysicalSize<u32>) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, screen_size: winit::dpi::PhysicalSize<u32>, depth_stencil: Option<wgpu::DepthStencilState>) -> Self {
         println!("{:?}",
             std::fs::read_dir("assets/fonts/").unwrap().map(|path| path.unwrap().path()).collect::<Vec<PathBuf>>()
         );
@@ -83,7 +83,7 @@ impl TextManager {
         let cache = glyphon::Cache::new(device);
         let viewport = glyphon::Viewport::new(device, &cache);
         let mut atlas = glyphon::TextAtlas::with_color_mode(device, queue, &cache, surface_format, glyphon::ColorMode::Accurate);
-        let text_renderer = glyphon::TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
+        let text_renderer = glyphon::TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), depth_stencil);
 
         //println!("{:?}", font_system.get_font_matches(glyphon::Attrs::new().family(glyphon::Family::Name("asjkdhgasjdhgas"))));
 
@@ -135,6 +135,7 @@ impl TextManager {
                 &self.viewport,
                 text_areas,
                 &mut self.swash_cache,
+                // |_| 0.0
             ).unwrap();
     }
 
@@ -166,6 +167,7 @@ pub struct Renderer<'a> {
     index_count: usize,
     depth_texture_view: wgpu::TextureView,
     depth_texture_sampler: wgpu::Sampler,
+    depth_stencil_state: Option<wgpu::DepthStencilState>,
     frame_data_buffer: wgpu::Buffer,
     frame_data_bind_group: wgpu::BindGroup,
     frame_data_bind_group_layout: wgpu::BindGroupLayout,
@@ -223,6 +225,14 @@ impl<'a> Renderer<'a> {
 
 
         // DEPTH PASS
+        // do not delete `depth_stencil_state` ever ever
+        let depth_stencil_state = Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less, // THIS IS WHERE FRONT-TO-BACK OR BACK-TO-FRONT ORDERING OCCURS
+                stencil: wgpu::StencilState::default(), // 2.
+                bias: wgpu::DepthBiasState::default(),
+            });
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Depth Buffer"),
             size: wgpu::Extent3d { // 2.
@@ -328,7 +338,7 @@ impl<'a> Renderer<'a> {
 
         //let pipeline = Self::create_main_pipeline(&device, &shader, &pipeline_layout, &surface_config);
         println!("Loading fonts...");
-        let mut text_manager = TextManager::new(&device, &queue, surface_format, size);
+        let mut text_manager = TextManager::new(&device, &queue, surface_format, size, depth_stencil_state.clone());
         text_manager.new_text_object(12.0, 10.0, 10.0);
 
         Self {
@@ -353,6 +363,7 @@ impl<'a> Renderer<'a> {
             index_count,
             depth_texture_view,
             depth_texture_sampler,
+            depth_stencil_state,
             frame_data_buffer,
             frame_data_bind_group,
             frame_data_bind_group_layout,
@@ -412,13 +423,7 @@ impl<'a> Renderer<'a> {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },    
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less, // THIS IS WHERE FRONT-TO-BACK OR BACK-TO-FRONT ORDERING OCCURS
-                stencil: wgpu::StencilState::default(), // 2.
-                bias: wgpu::DepthBiasState::default(),
-            }), // 1.
+            depth_stencil: self.depth_stencil_state.clone(), // 1.
             multisample: wgpu::MultisampleState {
                 count: 1, // 2.
                 mask: !0, // 3.
@@ -540,7 +545,7 @@ impl<'a> Renderer<'a> {
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32); // 1.
             render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1); // 2.
 
-            //self.text_manager.render(&mut render_pass);
+            self.text_manager.render(&mut render_pass);
         }
 
     // submit will accept anything that implements IntoIter

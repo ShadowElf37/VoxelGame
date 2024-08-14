@@ -214,9 +214,9 @@ mod tessellate {
 
         // basis vectors for the subspace :)
         let e1 = match facing {
-            Facing::N => -Vec3A::X,
+            Facing::N => Vec3A::X,
             Facing::E => Vec3A::Y,
-            Facing::W => -Vec3A::Y,
+            Facing::W => Vec3A::Y,
             Facing::S => Vec3A::X,
             Facing::U => Vec3A::X,
             Facing::D => Vec3A::X, 
@@ -227,43 +227,64 @@ mod tessellate {
             Facing::W => Vec3A::Z,
             Facing::S => Vec3A::Z,
             Facing::U => Vec3A::Y,
-            Facing::D => -Vec3A::Y, 
+            Facing::D => Vec3A::Y, 
         };
 
         // to bottom left of chunk face
         let offset = match facing {
-            Facing::N => offset + Vec3A::new(CHUNK_SIZE_F, 1.0, 0.0),
-            Facing::E => offset + Vec3A::new(1.0, 0.0, 0.0),
-            Facing::W => offset + Vec3A::new(0.0, CHUNK_SIZE_F, 0.0),
+            Facing::N => offset + Vec3A::Y,
+            Facing::E => offset + Vec3A::X,
+            Facing::W => offset,
             Facing::S => offset,
-            Facing::U => offset + Vec3A::new(0.0, 0.0, 1.0),
-            Facing::D => offset + Vec3A::new(0.0, CHUNK_SIZE_F, 0.0), 
+            Facing::U => offset + Vec3A::Z,
+            Facing::D => offset,
         };
 
         for sq in squares {
+            /*let sq = match facing {
+                Facing::N => sq,
+                Facing::E => sq,
+                Facing::W => &(CHUNK_SIZE-sq.2, CHUNK_SIZE-sq.3, CHUNK_SIZE-sq.0, CHUNK_SIZE-sq.1, sq.4),
+                Facing::S => &(CHUNK_SIZE-sq.2, CHUNK_SIZE-sq.3, CHUNK_SIZE-sq.0, CHUNK_SIZE-sq.1, sq.4),
+                Facing::U => sq,
+                Facing::D => &(CHUNK_SIZE-sq.2, CHUNK_SIZE-sq.3, CHUNK_SIZE-sq.0, CHUNK_SIZE-sq.1, sq.4),
+            };*/
+
             let w = (sq.2 - sq.0) as f32;
             let h = (sq.3 - sq.1) as f32;
 
-            vertices.push(Vertex {
-                pos: (e1 * sq.0 as f32 + e2 * sq.3 as f32 + offset).to_array(),
-                uv: [0.0, 0.0],
-                tex_id: sq.4
-            });
-            vertices.push(Vertex {
-                pos: (e1 * sq.0 as f32 + e2 * sq.1 as f32 + offset).to_array(),
-                uv: [0.0, h],
-                tex_id: sq.4
-            });
-            vertices.push(Vertex {
-                pos: (e1 * sq.2 as f32 + e2 * sq.1 as f32 + offset).to_array(),
-                uv: [w, h],
-                tex_id: sq.4
-            });
-            vertices.push(Vertex {
-                pos: (e1 * sq.2 as f32 + e2 * sq.3 as f32 + offset).to_array(),
-                uv: [w, 0.0],
-                tex_id: sq.4
-            });
+            let face = [
+                Vertex {
+                    pos: (e1 * sq.0 as f32 + e2 * sq.3 as f32 + offset).to_array(),
+                    uv: [0.0, 0.0],
+                    tex_id: sq.4
+                },
+                Vertex {
+                    pos: (e1 * sq.0 as f32 + e2 * sq.1 as f32 + offset).to_array(),
+                    uv: [0.0, h],
+                    tex_id: sq.4
+                },
+                Vertex {
+                    pos: (e1 * sq.2 as f32 + e2 * sq.1 as f32 + offset).to_array(),
+                    uv: [w, h],
+                    tex_id: sq.4
+                },
+                Vertex {
+                    pos: (e1 * sq.2 as f32 + e2 * sq.3 as f32 + offset).to_array(),
+                    uv: [w, 0.0],
+                    tex_id: sq.4
+                }
+            ];
+
+            // W, N, D have flipped UVs
+            match facing {
+                Facing::N => vertices.extend(face.iter().rev()),
+                Facing::E => vertices.extend(face),
+                Facing::W => vertices.extend(face.iter().rev()),
+                Facing::S => vertices.extend(face),
+                Facing::U => vertices.extend(face),
+                Facing::D => vertices.extend(face.iter().rev()),
+            }
         }
 
         vertices
