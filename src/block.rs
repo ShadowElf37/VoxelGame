@@ -214,44 +214,33 @@ mod tessellate {
 
         // basis vectors for the subspace :)
         let e1 = match facing {
-            Facing::N => Vec3A::X,
-            Facing::E => Vec3A::Y,
-            Facing::W => Vec3A::Y,
-            Facing::S => Vec3A::X,
-            Facing::U => Vec3A::X,
-            Facing::D => Vec3A::X, 
+            // N W minus for UV purposes but we keep it positive to build the mesh symmetrically
+            Facing::E | Facing::W => Vec3A::Y,
+            _ => Vec3A::X, //-
         };
         let e2 = match facing {
-            Facing::N => Vec3A::Z,
-            Facing::E => Vec3A::Z,
-            Facing::W => Vec3A::Z,
-            Facing::S => Vec3A::Z,
-            Facing::U => Vec3A::Y,
-            Facing::D => Vec3A::Y, 
+            // U minus
+            Facing::U | Facing::D => Vec3A::Y, //-
+            _ => Vec3A::Z,
         };
 
         // to bottom left of chunk face
         let offset = match facing {
             Facing::N => offset + Vec3A::Y,
             Facing::E => offset + Vec3A::X,
-            Facing::W => offset,
-            Facing::S => offset,
             Facing::U => offset + Vec3A::Z,
-            Facing::D => offset,
+            _ => offset,
         };
 
         for sq in squares {
             /*let sq = match facing {
-                Facing::N => sq,
-                Facing::E => sq,
-                Facing::W => &(CHUNK_SIZE-sq.2, CHUNK_SIZE-sq.3, CHUNK_SIZE-sq.0, CHUNK_SIZE-sq.1, sq.4),
-                Facing::S => &(CHUNK_SIZE-sq.2, CHUNK_SIZE-sq.3, CHUNK_SIZE-sq.0, CHUNK_SIZE-sq.1, sq.4),
-                Facing::U => sq,
-                Facing::D => &(CHUNK_SIZE-sq.2, CHUNK_SIZE-sq.3, CHUNK_SIZE-sq.0, CHUNK_SIZE-sq.1, sq.4),
+                // flip NWD so they are 
+                Facing::N | Facing::W | Facing::D => &(sq.2, sq.3, sq.0, sq.1, sq.4),
+                _ => sq,
             };*/
 
-            let w = (sq.2 - sq.0) as f32;
-            let h = (sq.3 - sq.1) as f32;
+            let w = (sq.2 as f32 - sq.0 as f32).abs();
+            let h = (sq.3 as f32 - sq.1 as f32).abs();
 
             let face = [
                 Vertex {
@@ -277,6 +266,7 @@ mod tessellate {
             ];
 
             // W, N, D have flipped UVs
+            //vertices.extend(face);
             match facing {
                 Facing::N => vertices.extend(face.iter().rev()),
                 Facing::E => vertices.extend(face),
