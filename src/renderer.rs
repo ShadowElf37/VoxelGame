@@ -1,3 +1,4 @@
+use crate::block;
 use std::path::PathBuf;
 use crate::texturing;
 use wgpu::BufferDescriptor;
@@ -162,6 +163,9 @@ pub struct Renderer<'a> {
     pub shader: wgpu::ShaderModule,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
+    index_count: usize,
+    depth_texture_view: wgpu::TextureView,
+    depth_texture_sampler: wgpu::Sampler,
     frame_data_buffer: wgpu::Buffer,
     frame_data_bind_group: wgpu::BindGroup,
     frame_data_bind_group_layout: wgpu::BindGroupLayout,
@@ -218,11 +222,54 @@ impl<'a> Renderer<'a> {
         };
 
 
-        // MAKE PIPELINE
-        let verts = geometry::CUBE;
+        // DEPTH PASS
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Buffer"),
+            size: wgpu::Extent3d { // 2.
+                width: surface_config.width,
+                height: surface_config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT // 3.
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth_texture_sampler = device.create_sampler(
+            &wgpu::SamplerDescriptor { // 4.
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                compare: Some(wgpu::CompareFunction::LessEqual), // 5.
+                lod_min_clamp: 0.0,
+                lod_max_clamp: 100.0,
+                ..Default::default()
+            }
+        );
+
+
+
+        use ndarray::prelude::*;
+        let mut C = block::Chunk::new(0.0, 0.0, 0.0);
+        C.ids.slice_mut(s![.., .., 0]).fill(1);
+        C.ids[(8, 8, 0)] = 0;
+        C.ids[(3, 5, 0)] = 0;
+
+        let (verts, indices) = C.get_mesh();
+
+        println!("{:?}\n{:?}", verts, indices);
+
+        /*let verts = geometry::CUBE;
         let indices: Vec<u32> = (0..36).map(|i| {
             [0u32, 1u32, 2u32, 2u32, 3u32, 0u32][(i%6) as usize] + i / 6 * 4
-        }).collect();
+        }).collect();*/
 
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -238,6 +285,7 @@ impl<'a> Renderer<'a> {
                 usage: wgpu::BufferUsages::INDEX,
             }
         );
+        let index_count = indices.len();
 
         let frame_data_buffer = device.create_buffer(
             &wgpu::BufferDescriptor {
@@ -302,6 +350,9 @@ impl<'a> Renderer<'a> {
             shader,
             vertex_buffer,
             index_buffer,
+            index_count,
+            depth_texture_view,
+            depth_texture_sampler,
             frame_data_buffer,
             frame_data_bind_group,
             frame_data_bind_group_layout,
@@ -361,7 +412,13 @@ impl<'a> Renderer<'a> {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },    
-            depth_stencil: None, // 1.
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less, // THIS IS WHERE FRONT-TO-BACK OR BACK-TO-FRONT ORDERING OCCURS
+                stencil: wgpu::StencilState::default(), // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }), // 1.
             multisample: wgpu::MultisampleState {
                 count: 1, // 2.
                 mask: !0, // 3.
@@ -394,9 +451,28 @@ impl<'a> Renderer<'a> {
             );
 
             self.camera.set_aspect_ratio(self.aspect_ratio);
+
+
             self.surface_config.width = new_size.width;
             self.surface_config.height = new_size.height;
             self.surface.configure(&self.device, &self.surface_config);
+
+            let new_depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Depth Buffer"),
+                size: wgpu::Extent3d { // 2.
+                    width: new_size.width,
+                    height: new_size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT // 3.
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            self.depth_texture_view = new_depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
         }
     }
 
@@ -432,7 +508,14 @@ impl<'a> Renderer<'a> {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
@@ -455,9 +538,9 @@ impl<'a> Renderer<'a> {
             }
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32); // 1.
-            render_pass.draw_indexed(0..36, 0, 0..1); // 2.
+            render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1); // 2.
 
-            self.text_manager.render(&mut render_pass);
+            //self.text_manager.render(&mut render_pass);
         }
 
     // submit will accept anything that implements IntoIter

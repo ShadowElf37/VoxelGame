@@ -63,9 +63,11 @@ impl Entity {
     }
 
     pub fn turn_horizontal(&mut self, amount_deg: f32) {
+        // these rot matrices can be cached because we only receive integer (or integer * look_sensitivity) inputs from the mouse events
         self.facing = Mat3::from_rotation_z(-amount_deg * DEG_TO_RAD) * self.facing;
     }
     pub fn turn_vertical(&mut self, amount_deg: f32) {
+        // these rot matrices can be cached because we only receive integer (or integer * look_sensitivity) inputs from the mouse events
         let new_facing = Mat3::from_axis_angle(self.get_rightward_vector(), -amount_deg * DEG_TO_RAD) * self.facing;
         if new_facing.dot(Vec3::Z).abs() < 0.999 {
             self.facing = new_facing;

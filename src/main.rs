@@ -17,6 +17,7 @@ mod entity;
 mod camera;
 mod texturing;
 mod ui;
+mod block;
 
 #[derive(Default)]
 pub struct GameState {
@@ -40,8 +41,6 @@ struct Game<'a> {
 impl Game<'_> {
     pub async fn new(event_loop: &EventLoop<()>) -> Self {
         //let window = Arc::new(event_loop.create_window(Window::default_attributes()).unwrap());
-        
-
         Game {
             game_state: GameState {
                 paused: false,
@@ -50,8 +49,6 @@ impl Game<'_> {
 
             window: None,
             renderer: None,
-            //window: window.clone(),
-            //renderer: renderer::Renderer::new(window.clone()).await,
 
             hold_cursor: true,
             cursor_moved_by:  (0.0, 0.0), // for macos use only
@@ -67,9 +64,8 @@ impl Game<'_> {
 
         self.hold_cursor = true;
         window.set_cursor_visible(false);
+        window.set_cursor_position(renderer.window_center_px).unwrap();
 
-        let snap_to = winit::dpi::PhysicalPosition::new(renderer.size.width/2, renderer.size.height/2);
-        window.set_cursor_position(snap_to).unwrap();
         #[cfg(target_os = "macos")]
         window.set_cursor_grab(winit::window::CursorGrabMode::Locked);
     }
@@ -85,14 +81,17 @@ impl Game<'_> {
 
 impl ApplicationHandler for Game<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.window = Some(Arc::new(event_loop.create_window(Window::default_attributes()).unwrap()));
-        self.window.clone().unwrap().set_title("Minecraft");
-        self.renderer = Some(pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap())));
-        self.renderer.as_mut().unwrap().load_texture_set(vec![
-            r"assets/textures/cobblestone.png"
+        let window = event_loop.create_window(Window::default_attributes()).unwrap();
+        window.set_title("Minecraft");
+        window.request_redraw();
+        window.focus_window();
+        self.window = Some(Arc::new(window));
+
+        let mut renderer = pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap()));
+        renderer.load_texture_set(vec![
+            "assets/textures/cobblestone.png"
         ]);
-        self.window.clone().unwrap().request_redraw();
-        self.window.clone().unwrap().focus_window();
+        self.renderer = Some(renderer);
     }
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
@@ -109,8 +108,7 @@ impl ApplicationHandler for Game<'_> {
                         if !cfg!(target_os = "macos") {
                             
                             if self.hold_cursor {
-                                let snap_to = winit::dpi::PhysicalPosition::new(renderer.size.width/2, renderer.size.height/2);
-                                window.set_cursor_position(snap_to).unwrap();
+                                window.set_cursor_position(renderer.window_center_px).unwrap();
                             }
                         }
                         //println!("Mouse moved: {:?} {} {} {}", delta, self.game_state.in_game, self.game_state.paused, self.hold_cursor);

@@ -11,8 +11,11 @@ wgpu = "22.1.0"
 env_logger = "0.10"
 log = "0.4"
 pollster = "0.3"
-bytemuck = { version = "1.16", features = [ "derive" ] }
+bytemuck = {version = "1.16", features = ["derive"]}
 glyphon = { git = "https://github.com/grovesNL/glyphon.git" }
+toml = "0.8.19"
+serde = {version = "1.0.207", features = ["derive"]}
+ndarray = "0.16.0"
 
 [profile.dev]
 opt-level = 1

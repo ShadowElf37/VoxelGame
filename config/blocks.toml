@@ -1,0 +1,14 @@
+[[blocks]]
+textures = ["cobblestone.png",]
+tex_face_map = [0, 0, 0, 0, 0, 0]
+solid = true
+
+[[blocks]]
+textures = ["grass_block_side.png", "grass_block_top.png", "dirt.png",]
+tex_face_map = [0, 0, 0, 0, 1, 2]
+solid = true
+
+[[blocks]]
+textures = ["dirt.png",]
+tex_face_map = [0, 0, 0, 0, 0, 0]
+solid = true
