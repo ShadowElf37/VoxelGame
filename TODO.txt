@@ -1,15 +1,16 @@
-- block proto integration with texturing
-- GPU visibility computation into mesh generator (updates when world calls a block update)
-- place block mouse click
+- GPU visibility computation into mesh generator 
 - gravity and ECS physics system
+
+- place/destroy block, mouse click
+- update visibility and mesh when world calls a block update (possibly cpu side re visibility when a single block is updated)
+- chunk loading/unloading
 
 - block proto integration with transparency (sends new Chunk::transparencies array with 0 solid or 1 glass/air)
 - glass block
 
-- chunk loading/unloading
 - terrain generation from perlin noise
 
-- pause menu and state condition for key presses
+- pause menu with egui-wgpu and state condition for key presses
 - fog with noise
 - transparency pass
 
@@ -19,6 +20,10 @@
 
 
 - sky shader (even if it's just solid color, currently &world is passed to the renderer which is weird)
+- radiance cascades
+
+- dont duplicate e.g. dirt.png when loading textures (for dirt and grass block) - have it set the offset to the previous texture's index after finding it
+
 
 
 
@@ -26,15 +31,6 @@ lighting, physics in thread
 own their own clocks (change nomenclature to "tick" instead of "frame")
 have internal fences to rate limit
 access lighting array and e.pos/e.vel (or make a new e.PhysState) using mutex
-event_loop accesses mutexes more/less often than they're written to
-
-
-cpu/compute calculates visible FACES
-GPU instance the faces, have an array on gpu of visible faces with texture ids
-
-saving chunks is just block_id,BlockProto does most of the work
-
-camera at 1.8m
 
 
 

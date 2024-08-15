@@ -1,19 +1,18 @@
-[[blocks]]
-textures = ["cobblestone.png",]
-tex_face_map = [0, 0, 0, 0, 0, 0]
-solid = true
+# there is no block with id 0 - it is permanently reserved for air
 
-[[blocks]]
+[[blocks]] # id 1
+name = "Cobblestone"
+textures = ["cobblestone.png",]
+
+[[blocks]] # id 2
+name = "Grass Block"
 textures = ["grass_block_side.png", "grass_block_top.png", "dirt.png",]
 tex_face_map = [0, 0, 0, 0, 1, 2]
-solid = true
 
-[[blocks]]
+[[blocks]] # id 3
+name = "Dirt"
 textures = ["dirt.png",]
-tex_face_map = [0, 0, 0, 0, 0, 0]
-solid = true
 
-[[blocks]]
+[[blocks]] # id 4
+name = "Bedrock"
 textures = ["bedrock.png",]
-tex_face_map = [0, 0, 0, 0, 0, 0]
-solid = true

@@ -25,7 +25,7 @@ impl Vertex {
                     format: wgpu::VertexFormat::Float32x2,
                 },
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<u32>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Uint32,
                 }
@@ -34,6 +34,7 @@ impl Vertex {
     }
 }
 
+#[derive(Clone)]
 pub enum Facing {
     N = 0,
     E = 1,

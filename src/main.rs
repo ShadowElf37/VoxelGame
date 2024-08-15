@@ -16,8 +16,8 @@ mod clock;
 mod entity;
 mod camera;
 mod texturing;
-mod ui;
 mod block;
+mod chunk;
 mod memarena;
 
 #[derive(Default)]
@@ -96,9 +96,7 @@ impl ApplicationHandler for Game<'_> {
 
         println!("Initializing renderer... ({:.2?})", t.elapsed());
         let mut renderer = pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap()));
-        renderer.load_texture_set(vec![
-            "assets/textures/grass_block_top.png"
-        ]);
+        renderer.load_texture_set(self.world.block_proto_set.collect_textures());
         
         println!("Generating chunks... ({:.2?})", t.elapsed());
         self.world.generate_all_chunks_around_player();

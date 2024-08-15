@@ -11,7 +11,6 @@ use wgpu::util::DeviceExt;
 use std::sync::Arc;
 use wgpu::PresentMode;
 use crate::geometry::Vertex;
-use crate::ui;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -443,7 +442,7 @@ impl<'a> Renderer<'a> {
         })
     }
 
-    pub fn load_texture_set(&mut self, fp_vec: Vec<&str>) {
+    pub fn load_texture_set(&mut self, fp_vec: Vec<String>) {
         println!("Loading texture set...");
         self.texture_sets.push(texturing::TextureSet::from_fp_vec(&self.device, &self.queue, &self.texture_bind_group_layout, fp_vec))
     }

@@ -1,5 +1,6 @@
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
 use std::sync::RwLock;
+use std::mem::{size_of, align_of};
 
 #[derive(Debug)]
 pub enum ArenaError {
@@ -46,10 +47,10 @@ impl<T> Drop for Arena<T> {
 impl<T> Arena<T> {
     // length in number of T it can hold
     pub fn new(length: usize) -> Arena<T> {
-        let layout_memory = Layout::from_size_align(std::mem::size_of::<RwLock<T>>()*length, 1).unwrap();
-        let layout_allocated = Layout::from_size_align(std::mem::size_of::<bool>()*length, 1).unwrap();
+        let layout_memory = Layout::from_size_align(size_of::<RwLock<T>>()*length, align_of::<RwLock<T>>()).unwrap();
+        let layout_allocated = Layout::from_size_align(size_of::<bool>()*length, align_of::<bool>()).unwrap();
 
-        println!("{:?} {:?} {:?}", layout_memory.size(), layout_allocated.size(), std::mem::size_of::<T>());
+        println!("Arena allocation: {:?} bytes, {:?} entities", layout_memory.size(), layout_allocated.size());
 
         unsafe {
             let ptr_memory = alloc(layout_memory);
@@ -140,7 +141,7 @@ impl<T> Arena<T> {
     // get the object at a certain index, wrapped in a RwLock
     pub fn obtain(&self, index: usize) -> Result<&RwLock<T>, ArenaError> {
         if index >= self.length {
-            return Err(ArenaError::BoundsExceeded);
+            return Err(ArenaError::BoundsExceeded)
         }
         if !unsafe{*self.allocated.add(index)} {
             return Err(ArenaError::DoesNotExist)

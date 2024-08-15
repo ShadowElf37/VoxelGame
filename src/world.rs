@@ -5,16 +5,19 @@ use crate::entity::*;
 use crate::geometry;
 
 const ENTITY_LIMIT: usize = 128;
-const RENDER_DISTANCE: usize = 12;
+const RENDER_DISTANCE: usize = 1;
 const RENDER_AREA: usize = 4*RENDER_DISTANCE*RENDER_DISTANCE;
 
 use glam::f32::{Vec3};
 use crate::block;
 use crate::memarena::Arena;
+use crate::chunk::{Chunk, CHUNK_SIZE_F};
 
 pub struct World {
-    pub chunks: Arena<block::Chunk>,
+    pub chunks: Arena<Chunk>,
     pub entities: Arena<Entity>,
+
+    pub block_proto_set: block::BlockProtoSet,
 
     pub spawn_point: Vec3,
     pub sky_color: [f32; 4],
@@ -25,8 +28,10 @@ impl World {
     pub fn new() -> Self {
         return Self {
             // render distance changing is easy. `chunks = Arena::from_iter(chunks.iter())`. then, ensure Arena::drop() works.
-            chunks: Arena::<block::Chunk>::new(RENDER_AREA),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
+            chunks: Arena::<Chunk>::new(RENDER_AREA),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
             entities: Arena::<Entity>::new(ENTITY_LIMIT),
+
+            block_proto_set: block::BlockProtoSet::from_toml("config/blocks.toml"),
 
             spawn_point: Vec3::new(0.0, 0.0, 0.0),
             player: Entity::new(Vec3::new(0.0, 0.0, 5.0)),
@@ -37,7 +42,7 @@ impl World {
     pub fn generate_all_chunks_around_player(&mut self) {
         for x in -(RENDER_DISTANCE as i64)..RENDER_DISTANCE as i64 {
             for y in -(RENDER_DISTANCE as i64)..RENDER_DISTANCE as i64 {
-                let mut new_chunk = block::Chunk::new(x as f32 * block::CHUNK_SIZE_F, y as f32 * block::CHUNK_SIZE_F, 0.0);
+                let mut new_chunk = Chunk::new(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, 0.0);
                 new_chunk.generate_flat();
                 self.chunks.create(new_chunk).unwrap();
             }
@@ -49,7 +54,7 @@ impl World {
         let mut indices_offset = 0u32;
 
         for chunk in self.chunks.iter() {
-            let (v, i) = chunk.read().unwrap().get_mesh(indices_offset);
+            let (v, i) = chunk.read().unwrap().get_mesh(indices_offset, &self.block_proto_set);
             indices_offset += v.len() as u32;
             vertices.extend(v);
             indices.extend(i);

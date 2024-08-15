@@ -28,7 +28,7 @@ pub const TEXTURE_SET_LAYOUT_DESC: wgpu::BindGroupLayoutDescriptor = wgpu::BindG
 };
 
 impl TextureSet {
-    pub fn from_fp_vec(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, fp_vec: Vec<&str>) -> Self {
+    pub fn from_fp_vec(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, fp_vec: Vec<String>) -> Self {
         use image::{ImageBuffer, Rgba, ImageReader};
 
         fn load_rgba8(fp: &str) -> ImageBuffer<Rgba<u8>, Vec<u8>> {ImageReader::open(fp).expect(&format!("Failed to load {}", fp)).decode().expect(&format!("Failed to decode {}", fp)).into_rgba8()}
@@ -103,7 +103,7 @@ impl TextureSet {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
