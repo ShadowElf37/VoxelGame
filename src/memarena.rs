@@ -1,25 +1,11 @@
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
 use std::sync::RwLock;
 
-
-pub struct ArenaIterator<'a, T> {
-    i: usize,
-    arena: &'a Arena<T>,
-}
-impl<'a, T> Iterator for ArenaIterator<'a, T> {
-    type Item = &'a RwLock<T>;
-    fn next(&mut self) -> std::option::Option<<Self as Iterator>::Item> {
-        
-        if self.i < self.arena.length {
-            match self.arena.obtain(self.i) {
-                Ok(lock) => { self.i += 1; return Some(lock); }
-                _ => { self.i += 1; return self.next()}
-            }
-        } else {
-            return None;
-        }
-        
-    }
+#[derive(Debug)]
+pub enum ArenaError {
+    BoundsExceeded,
+    DoesNotExist,
+    OutOfMemory,
 }
 
 
@@ -114,7 +100,7 @@ impl<T> Arena<T> {
     }
 
     // create an object at the next available space - if no space is free, sad!
-    pub fn create(&mut self, obj: T) -> Result<usize, &str> {
+    pub fn create(&mut self, obj: T) -> Result<usize, ArenaError> {
         for i in self.last_known_free..self.length {
             if unsafe {self.allocated.add(i).read()} { continue; } // already allocated to that slot, keep going
 
@@ -128,17 +114,17 @@ impl<T> Arena<T> {
             self.last_known_free += 1;
             return Ok(i);
         }
-        Err("Out of memory in arena!")
+        Err(ArenaError::OutOfMemory)
     }
 
     // destroy the object at a certain index so that space can be used again (e.g. entity dies)
-    pub fn destroy(&mut self, index: usize) -> Result<(), &str> {
+    pub fn destroy(&mut self, index: usize) -> Result<(), ArenaError> {
         //we have to do this error checking manually because the borrow checker gets very angry about &mut
         if index >= self.length {
-            return Err("Index outside of arena length");
+            return Err(ArenaError::BoundsExceeded);
         }
         if !unsafe{*self.allocated.add(index)} {
-            return Err("Object at this index doesn't exist to begin with")
+            return Err(ArenaError::DoesNotExist)
         }
 
         unsafe {
@@ -152,12 +138,12 @@ impl<T> Arena<T> {
     }
 
     // get the object at a certain index, wrapped in a RwLock
-    pub fn obtain(&self, index: usize) -> Result<&RwLock<T>, &str> {
+    pub fn obtain(&self, index: usize) -> Result<&RwLock<T>, ArenaError> {
         if index >= self.length {
-            return Err("Index outside of arena length");
+            return Err(ArenaError::BoundsExceeded);
         }
         if !unsafe{*self.allocated.add(index)} {
-            return Err("No object at this index")
+            return Err(ArenaError::DoesNotExist)
         }
 
         unsafe {
@@ -173,6 +159,30 @@ impl<T> Arena<T> {
         }
     }*/
 }
+
+
+pub struct ArenaIterator<'a, T> {
+    i: usize,
+    arena: &'a Arena<T>,
+}
+impl<'a, T> Iterator for ArenaIterator<'a, T> {
+    type Item = &'a RwLock<T>;
+    fn next(&mut self) -> std::option::Option<<Self as Iterator>::Item> {
+        
+        if self.i < self.arena.length {
+            match self.arena.obtain(self.i) {
+                Ok(lock) => {self.i += 1; return Some(lock)}
+                _ => {self.i += 1; return self.next()}
+            }
+        } else {
+            return None;
+        }
+        
+    }
+}
+
+
+
 
 #[derive(Debug)]
 struct Test<'a> {

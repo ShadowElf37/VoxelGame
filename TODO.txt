@@ -1,15 +1,13 @@
-- iterator on arena, and chunk generation
-
 - block proto integration with texturing
 - GPU visibility computation into mesh generator (updates when world calls a block update)
+- place block mouse click
+- gravity and ECS physics system
 
 - block proto integration with transparency (sends new Chunk::transparencies array with 0 solid or 1 glass/air)
 - glass block
 
 - chunk loading/unloading
 - terrain generation from perlin noise
-
-- gravity and ECS physics system
 
 - pause menu and state condition for key presses
 - fog with noise
