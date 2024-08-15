@@ -1,4 +1,3 @@
-use std::sync::RwLockReadGuard;
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
 use std::sync::RwLock;
 
@@ -108,44 +107,28 @@ impl<T> Arena<T> {
         return ArenaIterator { i: 0, arena: self }
     }
 
-    // check if an index is in use already
-    fn check_allocated(&self, index: usize) -> Result<(), &str> {
-        if index >= self.length {
-            return Err("Index outside of arena length");
-        }
-        if !unsafe{*self.allocated.add(index)} {
-            return Err("Object at this index was either destroyed or never allocated")
-        }
-        Ok(())
-    }
-
     // writes an object to an index regardless of allocation status. does no bounds checking. use with care.
     unsafe fn overwrite(&mut self, index: usize, obj: T) {
-        *self.memory.add(index) = RwLock::new(obj);
-        *self.allocated.add(index) = true;
+        self.memory.add(index).write(RwLock::new(obj));
+        self.allocated.add(index).write(true);
     }
 
     // create an object at the next available space - if no space is free, sad!
     pub fn create(&mut self, obj: T) -> Result<usize, &str> {
-        let mut index = 0;
-        let mut found = false;
         for i in self.last_known_free..self.length {
-            if !unsafe {*self.allocated.add(i)} {
-                index = i;
-                found = true;
-                break;
+            if unsafe {self.allocated.add(i).read()} { continue; } // already allocated to that slot, keep going
+
+            // we found one that was free!
+            unsafe {
+                self.memory.add(i).write(RwLock::new(obj));
+                self.allocated.add(i).write(true);
             }
+
+            self.count += 1;
+            self.last_known_free += 1;
+            return Ok(i);
         }
-        if !found {return Err("Out of memory in arena!");}
-        //
-        println!("i {}", index);
-        unsafe {
-            *self.memory.add(index) = RwLock::new(obj);
-            *self.allocated.add(index) = true;
-        }
-        println!("escaped");
-        self.count += 1;
-        Ok(index)
+        Err("Out of memory in arena!")
     }
 
     // destroy the object at a certain index so that space can be used again (e.g. entity dies)
@@ -158,7 +141,11 @@ impl<T> Arena<T> {
             return Err("Object at this index doesn't exist to begin with")
         }
 
-        unsafe {*self.allocated.add(index) = false;}
+        unsafe {
+            self.memory.add(index).drop_in_place();
+            self.allocated.add(index).write(false);
+        }
+
         self.last_known_free = index;
         self.count -= 1;
         Ok(())
@@ -166,7 +153,13 @@ impl<T> Arena<T> {
 
     // get the object at a certain index, wrapped in a RwLock
     pub fn obtain(&self, index: usize) -> Result<&RwLock<T>, &str> {
-        self.check_allocated(index)?;
+        if index >= self.length {
+            return Err("Index outside of arena length");
+        }
+        if !unsafe{*self.allocated.add(index)} {
+            return Err("No object at this index")
+        }
+
         unsafe {
             Ok(&*self.memory.add(index))
         }

@@ -5,7 +5,7 @@ use crate::entity::*;
 use crate::geometry;
 
 const ENTITY_LIMIT: usize = 128;
-const RENDER_DISTANCE: usize = 2;
+const RENDER_DISTANCE: usize = 12;
 const RENDER_AREA: usize = 4*RENDER_DISTANCE*RENDER_DISTANCE;
 
 use glam::f32::{Vec3};
@@ -39,9 +39,6 @@ impl World {
             for y in -(RENDER_DISTANCE as i64)..RENDER_DISTANCE as i64 {
                 let mut new_chunk = block::Chunk::new(x as f32 * block::CHUNK_SIZE_F, y as f32 * block::CHUNK_SIZE_F, 0.0);
                 new_chunk.generate_flat();
-                println!("chunk size 1 {}", std::mem::size_of::<block::Chunk>());
-                println!("chunk size 2 {}", std::mem::size_of_val::<block::Chunk>(&new_chunk));
-                //self.chunks.push(new_chunk);
                 self.chunks.create(new_chunk).unwrap();
             }
         }
