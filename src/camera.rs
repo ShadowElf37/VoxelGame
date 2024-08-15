@@ -24,7 +24,7 @@ impl Camera {
             fov,
             aspect_ratio,
             look_sensitivity: if cfg!(target_os = "macos") {0.07} else {0.02},
-            height: 1.8,
+            height: 1.6,
             proj_mat: Self::get_proj_mat(fov, aspect_ratio)
         }
     }

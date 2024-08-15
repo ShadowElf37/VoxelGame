@@ -18,6 +18,7 @@ mod camera;
 mod texturing;
 mod ui;
 mod block;
+mod memarena;
 
 #[derive(Default)]
 pub struct GameState {
@@ -41,6 +42,9 @@ struct Game<'a> {
 impl Game<'_> {
     pub async fn new(event_loop: &EventLoop<()>) -> Self {
         //let window = Arc::new(event_loop.create_window(Window::default_attributes()).unwrap());
+
+        let world = world::World::new();
+
         Game {
             game_state: GameState {
                 paused: false,
@@ -53,7 +57,7 @@ impl Game<'_> {
             hold_cursor: true,
             cursor_moved_by:  (0.0, 0.0), // for macos use only
 
-            world: world::World::new(),
+            world,
             clock: clock::Clock::new(),
         }
     }
@@ -81,16 +85,31 @@ impl Game<'_> {
 
 impl ApplicationHandler for Game<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let t = std::time::Instant::now();
+
+        println!("Initializing window...");
         let window = event_loop.create_window(Window::default_attributes()).unwrap();
         window.set_title("Minecraft");
         window.request_redraw();
         window.focus_window();
         self.window = Some(Arc::new(window));
 
+        println!("Initializing renderer... ({:.2?})", t.elapsed());
         let mut renderer = pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap()));
         renderer.load_texture_set(vec![
-            "assets/textures/cobblestone.png"
+            "assets/textures/grass_block_top.png"
         ]);
+        
+        println!("Generating chunks... ({:.2?})", t.elapsed());
+        self.world.generate_all_chunks_around_player();
+
+        println!("Meshing... ({:.2?})", t.elapsed());
+        let (verts, indices) = self.world.get_all_chunk_meshes();
+        println!("Pushing meshes to GPU... ({:.2?})", t.elapsed());
+        renderer.push_vertices_and_indices(verts, indices);
+
+        println!("Done! ({:.2?})", t.elapsed());
+
         self.renderer = Some(renderer);
     }
 

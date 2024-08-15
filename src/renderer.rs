@@ -73,9 +73,9 @@ pub struct TextManager {
 }
 impl TextManager {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, screen_size: winit::dpi::PhysicalSize<u32>, depth_stencil: Option<wgpu::DepthStencilState>) -> Self {
-        println!("{:?}",
-            std::fs::read_dir("assets/fonts/").unwrap().map(|path| path.unwrap().path()).collect::<Vec<PathBuf>>()
-        );
+        //println!("{:?}",
+        //    std::fs::read_dir("assets/fonts/").unwrap().map(|path| path.unwrap().path()).collect::<Vec<PathBuf>>()
+        //);
 
         let fonts_to_load = std::fs::read_dir("assets/fonts/").unwrap().map(|path| glyphon::cosmic_text::fontdb::Source::File(path.unwrap().path()));
         let font_system = glyphon::FontSystem::new_with_fonts(fonts_to_load);
@@ -162,8 +162,8 @@ pub struct Renderer<'a> {
     // for main 3d rendering, not ui stuff (that will be in UILayers)
     pub pipeline: Option<wgpu::RenderPipeline>,
     pub shader: wgpu::ShaderModule,
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
+    pub vertex_buffer: Option<wgpu::Buffer>,
+    pub index_buffer: Option<wgpu::Buffer>,
     index_count: usize,
     depth_texture_view: wgpu::TextureView,
     depth_texture_sampler: wgpu::Sampler,
@@ -265,37 +265,28 @@ impl<'a> Renderer<'a> {
         );
 
 
-
+        // ONE CHUNK
+        /*
         use ndarray::prelude::*;
         let mut C = block::Chunk::new(0.0, 0.0, 0.0);
         C.ids.slice_mut(s![.., .., 0]).fill(1);
         C.ids[(8, 8, 0)] = 0;
         C.ids[(3, 5, 0)] = 0;
+        C.ids[(15, 15, 1)] = 1;
+        C.ids[(15, 15, 2)] = 1;
 
         let (verts, indices) = C.get_mesh();
+        */
 
-        println!("{:?}\n{:?}", verts, indices);
-
-        /*let verts = geometry::CUBE;
+        // ONE BLOCK
+        /*
+        let verts = geometry::CUBE;
         let indices: Vec<u32> = (0..36).map(|i| {
             [0u32, 1u32, 2u32, 2u32, 3u32, 0u32][(i%6) as usize] + i / 6 * 4
-        }).collect();*/
+        }).collect();
+        */
 
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&verts),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
-        let index_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(&indices),
-                usage: wgpu::BufferUsages::INDEX,
-            }
-        );
-        let index_count = indices.len();
+        
 
         let frame_data_buffer = device.create_buffer(
             &wgpu::BufferDescriptor {
@@ -358,9 +349,9 @@ impl<'a> Renderer<'a> {
 
             pipeline: None,
             shader,
-            vertex_buffer,
-            index_buffer,
-            index_count,
+            vertex_buffer: None,
+            index_buffer: None,
+            index_count: 0,
             depth_texture_view,
             depth_texture_sampler,
             depth_stencil_state,
@@ -373,6 +364,24 @@ impl<'a> Renderer<'a> {
 
             text_manager,
         }
+    }
+
+    pub fn push_vertices_and_indices(&mut self, verts: Vec<Vertex>, indices: Vec<u32>) {
+        self.vertex_buffer = Some(self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&verts),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        ));
+        self.index_buffer = Some(self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        ));
+        self.index_count = indices.len();
     }
 
     fn create_main_pipeline(&self) -> wgpu::RenderPipeline {
@@ -541,8 +550,9 @@ impl<'a> Renderer<'a> {
             for (i, texset) in self.texture_sets.iter().enumerate() {
                 render_pass.set_bind_group((i+1) as u32, &texset.bind_group, &[]);
             }
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32); // 1.
+            // the .slice(..) will control frustum culling when the time comes
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.as_ref().expect("A vertex buffer was never pushed to the GPU!").slice(..));
+            render_pass.set_index_buffer(self.index_buffer.as_ref().expect("An index buffer was never pushed to the GPU!").slice(..), wgpu::IndexFormat::Uint32); // 1.
             render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1); // 2.
 
             self.text_manager.render(&mut render_pass);

@@ -12,3 +12,8 @@ solid = true
 textures = ["dirt.png",]
 tex_face_map = [0, 0, 0, 0, 0, 0]
 solid = true
+
+[[blocks]]
+textures = ["bedrock.png",]
+tex_face_map = [0, 0, 0, 0, 0, 0]
+solid = true

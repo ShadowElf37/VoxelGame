@@ -44,7 +44,7 @@ impl Entity {
             vel: Vec3::new(0.0, 0.0, 0.0),
             facing: Vec3::new(0.0, 1.0, 0.0),
 
-            move_speed: 3.0,
+            move_speed: 4.3,
             desired_movement: NO_MOVEMENT,
 
             flying: true,
@@ -120,21 +120,4 @@ impl Entity {
     pub fn clear_moving(&mut self) {
         self.desired_movement = NO_MOVEMENT;
     }
-
-    // DEPRECATED: manual movement
-    /*
-    pub fn move_forward(&mut self, amount: f32) {
-        self.pos += amount * self.facing;
-    }
-    pub fn move_forward_xy(&mut self, amount: f32) {
-        // moves in the xy plane only
-        self.pos += amount * self.facing.with_z(0f32).normalize();
-    }
-    pub fn move_rightward(&mut self, amount: f32) {
-        self.pos += amount * self.get_rightward_vector();
-    }
-    pub fn move_up(&mut self, amount: f32) {
-        self.pos += amount * Vec3::Z;
-    }
-    */
 }

@@ -20,36 +20,13 @@ pub fn load_from_toml(fp: &str) -> Vec<BlockProto> {
     toml::from_str::<BlockProtoSet>(&data).expect("Invalid toml").blocks
 }
 
-#[test]
-fn main() {
-    load_from_toml("config/blocks.toml");
-    //let a: Array::<u32, Dim> = Array::<u32, _>::zeros((CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,).f()).dimension;
-    let mut c = Chunk::new(0.0, 0.0, 0.0);
-    c.ids.slice_mut(s![.., .., 0]).fill(1u32);
-    c.ids[(7, 0, 0)] = 0u32;
-    c.ids[(4, 6, 0)] = 0u32;
-    c.ids[(14, 12, 0)] = 2u32;
-    let slc = c.ids.slice(s![.., .., 0]);
-
-    use std::time::Instant;
-    let now = Instant::now();
-
-    let t = tessellate::tessellate_slice(slc);
-    //println!("{}/9", t.len());
-
-    let elapsed = now.elapsed().mul_f32(16.0*6.0);
-    println!("Elapsed: {:.2?}", elapsed);
-
-    println!("{:?}", t);
-}
-
 
 use ndarray::prelude::*;
 use ndarray::{Array, ArrayView, Ix1, Ix2, Ix3, Axis};
 use crate::geometry::{Vertex, Facing};
 
-const CHUNK_SIZE: usize = 16;
-const CHUNK_SIZE_F: f32 = 16.0;
+pub const CHUNK_SIZE: usize = 16;
+pub const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
 pub struct Chunk {
     pub x: f32,
     pub y: f32,
@@ -64,9 +41,17 @@ impl Chunk {
         }
     }
 
-    pub fn get_mesh(&self) -> (Vec<Vertex>, Vec<u32>) {
+    pub fn generate_flat(&mut self) {
+        self.ids.slice_mut(s![.., .., 0]).fill(4);
+        self.ids.slice_mut(s![.., .., 1..3]).fill(1);
+        self.ids.slice_mut(s![.., .., 3]).fill(2);
+    }
+
+    pub fn get_mesh(&self, indices_offset: u32) -> (Vec<Vertex>, Vec<u32>) {
         use glam::Vec3A;
         let mut vertices: Vec<Vertex> = vec![];
+
+        // just thread this lol, this is 6*size threads easy
 
         for (z, slice) in self.ids.axis_iter(Axis(2)).enumerate() {
             let squares = tessellate::tessellate_slice(slice);
@@ -102,7 +87,10 @@ impl Chunk {
         //println!("{:?}", vertices.len());
         let mut indices: Vec<u32> = vec![];
         for i in 0..vertices.len()/4 {
-            indices.extend([0, 1, 2, 2, 3, 0].into_iter().map(|x| (x+i*4) as u32))
+            indices.extend(
+                [indices_offset, indices_offset+1, indices_offset+2, indices_offset+2, indices_offset+3, indices_offset]
+                .into_iter().map(|x| (x + (i as u32) * 4) )
+            )
         };
 
         (vertices, indices)
@@ -224,7 +212,7 @@ mod tessellate {
             _ => Vec3A::Z,
         };
 
-        // to bottom left of chunk face
+        // to bottom left of chunk
         let offset = match facing {
             Facing::N => offset + Vec3A::Y,
             Facing::E => offset + Vec3A::X,
@@ -233,50 +221,71 @@ mod tessellate {
         };
 
         for sq in squares {
-            /*let sq = match facing {
-                // flip NWD so they are 
-                Facing::N | Facing::W | Facing::D => &(sq.2, sq.3, sq.0, sq.1, sq.4),
-                _ => sq,
-            };*/
-
-            let w = (sq.2 as f32 - sq.0 as f32).abs();
-            let h = (sq.3 as f32 - sq.1 as f32).abs();
-
-            let face = [
-                Vertex {
-                    pos: (e1 * sq.0 as f32 + e2 * sq.3 as f32 + offset).to_array(),
-                    uv: [0.0, 0.0],
-                    tex_id: sq.4
-                },
-                Vertex {
-                    pos: (e1 * sq.0 as f32 + e2 * sq.1 as f32 + offset).to_array(),
-                    uv: [0.0, h],
-                    tex_id: sq.4
-                },
-                Vertex {
-                    pos: (e1 * sq.2 as f32 + e2 * sq.1 as f32 + offset).to_array(),
-                    uv: [w, h],
-                    tex_id: sq.4
-                },
-                Vertex {
-                    pos: (e1 * sq.2 as f32 + e2 * sq.3 as f32 + offset).to_array(),
-                    uv: [w, 0.0],
-                    tex_id: sq.4
-                }
+            let verts_raw = [
+                (e1 * sq.0 as f32 + e2 * sq.3 as f32 + offset).to_array(),
+                (e1 * sq.0 as f32 + e2 * sq.1 as f32 + offset).to_array(),
+                (e1 * sq.2 as f32 + e2 * sq.1 as f32 + offset).to_array(),
+                (e1 * sq.2 as f32 + e2 * sq.3 as f32 + offset).to_array(),
             ];
 
+            let w = (sq.2 - sq.0) as f32;
+            let h = (sq.3 - sq.1) as f32;
+            let uvs_raw = [
+                [0.0, 0.0],
+                [0.0, h],
+                [w, h],
+                [w, 0.0],
+            ];
+
+            let face = (match facing {
+                // fix normals and uvs by changing the order of the vertices, which are flipped for NWD
+                Facing::N | Facing::W => [(3, 0), (2, 1), (1, 2), (0, 3)],
+                Facing::D =>             [(3, 2), (2, 3), (1, 0), (0, 1)],
+                _ =>                     [(0, 0), (1, 1), (2, 2), (3, 3)]
+            }).map(|(vti, uvi)|
+                Vertex{
+                    pos: verts_raw[vti],
+                    uv: uvs_raw[uvi],
+                    tex_id: sq.4
+                }
+            );
+
             // W, N, D have flipped UVs
-            //vertices.extend(face);
-            match facing {
-                Facing::N => vertices.extend(face.iter().rev()),
-                Facing::E => vertices.extend(face),
-                Facing::W => vertices.extend(face.iter().rev()),
-                Facing::S => vertices.extend(face),
-                Facing::U => vertices.extend(face),
-                Facing::D => vertices.extend(face.iter().rev()),
-            }
+            vertices.extend(face);
+            /*match facing {
+                Facing::N => vertices.extend([face[1], face[0], face[3], face[2], ]),
+                Facing::W => vertices.extend([face[1], face[0], face[3], face[2], ]),
+                Facing::D => vertices.extend([face[1], face[0], face[3], face[2], ]),
+                _ => vertices.extend(face),
+            }*/
         }
 
         vertices
     }
+}
+
+
+
+
+//#[test]
+fn main() {
+    load_from_toml("config/blocks.toml");
+    //let a: Array::<u32, Dim> = Array::<u32, _>::zeros((CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,).f()).dimension;
+    let mut c = Chunk::new(0.0, 0.0, 0.0);
+    c.ids.slice_mut(s![.., .., 0]).fill(1u32);
+    c.ids[(7, 0, 0)] = 0u32;
+    c.ids[(4, 6, 0)] = 0u32;
+    c.ids[(14, 12, 0)] = 2u32;
+    let slc = c.ids.slice(s![.., .., 0]);
+
+    use std::time::Instant;
+    let now = Instant::now();
+
+    let t = tessellate::tessellate_slice(slc);
+    //println!("{}/9", t.len());
+
+    let elapsed = now.elapsed().mul_f32(16.0*6.0);
+    println!("Elapsed: {:.2?}", elapsed);
+
+    println!("{:?}", t);
 }

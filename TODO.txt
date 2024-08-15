@@ -1,14 +1,12 @@
-- the meshes should not be built mirrored like the UVs are, in squares_to_vertices() - somehow  you must set all the basis vectors to be not-mirrored, but ensure the UVs do not flip inappropriately
+- iterator on arena, and chunk generation
 
-- GPU visibility computation into mesh generator (updates when world calls a block update)
 - block proto integration with texturing
+- GPU visibility computation into mesh generator (updates when world calls a block update)
 
 - block proto integration with transparency (sends new Chunk::transparencies array with 0 solid or 1 glass/air)
 - glass block
 
-- ECS
-
-- world holds chunks; chunk loading/unloading (just dynamically generate for now)
+- chunk loading/unloading
 - terrain generation from perlin noise
 
 - gravity and ECS physics system
@@ -22,6 +20,7 @@
 - use vertex indices in render pass to do cpu-side frustum/occlusion culling
 
 
+- sky shader (even if it's just solid color, currently &world is passed to the renderer which is weird)
 
 
 
