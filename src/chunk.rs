@@ -36,14 +36,38 @@ impl<'a> Chunk {
 
     pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) {
         let (chunk_x,chunk_y,chunk_z) = (x-self.x, y-self.y, z-self.z);
-        let (chunk_x,chunk_y,chunk_z) = (chunk_x.floor() as usize, chunk_y.floor() as usize, chunk_z.floor() as usize);
-        Self::get_view_mut(&mut self.ids_array)[(chunk_x, chunk_y, chunk_z)] = id;
+        let (mut chunk_i, mut chunk_j, mut chunk_k) = (chunk_x.floor() as usize, chunk_y.floor() as usize, chunk_z.floor() as usize);
+        if chunk_i > 15 {
+            chunk_i = 15;
+            println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
+        }
+        if chunk_j > 15 {
+            chunk_j = 15;
+            println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
+        }
+        if chunk_k > 15 {
+            chunk_k = 15;
+            println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
+        }
+        Self::get_view_mut(&mut self.ids_array)[(chunk_i, chunk_j, chunk_k)] = id;
     }
 
     pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
         let (chunk_x,chunk_y,chunk_z) = (x-self.x, y-self.y, z-self.z);
-        let (chunk_x,chunk_y,chunk_z) = (chunk_x.floor() as usize, chunk_y.floor() as usize, chunk_z.floor() as usize);
-        Self::get_view(&self.ids_array)[(chunk_x, chunk_y, chunk_z)]
+        let (mut chunk_i, mut chunk_j, mut chunk_k) = (chunk_x.floor() as usize, chunk_y.floor() as usize, chunk_z.floor() as usize);
+        if chunk_i > 15 {
+            chunk_i = 15;
+            println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
+        }
+        if chunk_j > 15 {
+            chunk_j = 15;
+            println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
+        }
+        if chunk_k > 15 {
+            chunk_k = 15;
+            println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
+        }
+        Self::get_view(&self.ids_array)[(chunk_i, chunk_j, chunk_k)]
     }
 
     fn get_view<T>(arr: &'a ChunkArray<T>) -> ArrayView::<'a, T, Ix3> {

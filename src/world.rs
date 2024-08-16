@@ -137,6 +137,13 @@ impl World {
         let mut dx = Vec3::ZERO;
         let mut dv = Vec3::ZERO;
         let (x, y, z) = (e.pos.x, e.pos.y, e.pos.z);
+
+        if z < -32.0 {
+            e.pos = Vec3::new(0.0, 0.0, 10.0);
+            e.vel.z = 0.0;
+            e.facing = Vec3::new(0.0, 1.0, 0.0);
+        }
+
         //let entity_chunk = self.get_chunk_at(x, y, z);
 
         e.update_time_independent_acceleration();
