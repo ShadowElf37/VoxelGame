@@ -111,33 +111,19 @@ impl Entity {
             self.acc_rate = 150.0;
         }
 
-        if self.flying || true { // !self.in_air
-            if self.desired_movement.FORWARD {
-                self.acc += self.get_moving_forward_xy(1.0);
-            }
-            if self.desired_movement.BACKWARD {
-                self.acc += self.get_moving_forward_xy(-1.0);
-            }
-            if self.desired_movement.RIGHT {
-                self.acc += self.get_moving_rightward(1.0);
-            }
-            if self.desired_movement.LEFT {
-                self.acc += self.get_moving_rightward(-1.0);
-            }
-        } else if self.in_air {
-            // if self.desired_movement.FORWARD {
-            //     self.acc += self.get_moving_forward_xy(0.2);
-            // }
-            // if self.desired_movement.BACKWARD {
-            //     self.acc += self.get_moving_forward_xy(-0.2);
-            // }
-            // if self.desired_movement.RIGHT {
-            //     self.acc += self.get_moving_rightward(0.2);
-            // }
-            // if self.desired_movement.LEFT {
-            //     self.acc += self.get_moving_rightward(-0.2);
-            // }
+        if self.desired_movement.FORWARD {
+            self.acc += self.get_moving_forward_xy(1.0);
         }
+        if self.desired_movement.BACKWARD {
+            self.acc += self.get_moving_forward_xy(-1.0);
+        }
+        if self.desired_movement.RIGHT {
+            self.acc += self.get_moving_rightward(1.0);
+        }
+        if self.desired_movement.LEFT {
+            self.acc += self.get_moving_rightward(-1.0);
+        }
+        
         if self.flying {
             if self.desired_movement.UP {
                 self.acc += self.get_moving_up(1.0);
