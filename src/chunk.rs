@@ -1,64 +1,98 @@
-
-// CHUNK STUFF
 use crate::block::{BlockProtoSet, BlockID};
 use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
-use ndarray::{Array, Ix3, Axis};
+use ndarray::{Ix3, Axis};
 
 pub const CHUNK_SIZE: usize = 16;
+pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;
 pub const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
+
+type ChunkArray<T> = [T; CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE];
+
 pub struct Chunk {
     pub x: f32,
     pub y: f32,
     pub z: f32,
-    pub ids: Array::<BlockID, Ix3>,
+    ids_array: ChunkArray<BlockID>,
+    visibility_array: ChunkArray<u8>,
 }
-impl Chunk {
+
+impl<'a> Chunk {
     pub fn new(x: f32, y: f32, z: f32) -> Self {
+        //stacker::maybe_grow(std::mem::size_of::<Self>(), std::mem::size_of::<Self>(), || {
         Self {
             x, y, z,
-            ids: Array::<BlockID, Ix3>::zeros((CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE,))
+            ids_array: [0; CHUNK_VOLUME],
+            visibility_array: [1; CHUNK_VOLUME],
         }
+        //})
+    }
+
+    pub fn check_inside_me(&self, x: f32, y: f32, z: f32) -> bool {
+        self.x + CHUNK_SIZE_F > x && x >= self.x && 
+        self.y + CHUNK_SIZE_F > y && y >= self.y && 
+        self.z + CHUNK_SIZE_F > z && z >= self.z
+    }
+
+    pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) {
+        let (chunk_x,chunk_y,chunk_z) = (x-self.x, y-self.y, z-self.z);
+        let (chunk_x,chunk_y,chunk_z) = (chunk_x.floor() as usize, chunk_y.floor() as usize, chunk_z.floor() as usize);
+        Self::get_view_mut(&mut self.ids_array)[(chunk_x, chunk_y, chunk_z)] = id;
+    }
+
+    pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
+        let (chunk_x,chunk_y,chunk_z) = (x-self.x, y-self.y, z-self.z);
+        let (chunk_x,chunk_y,chunk_z) = (chunk_x.floor() as usize, chunk_y.floor() as usize, chunk_z.floor() as usize);
+        Self::get_view(&self.ids_array)[(chunk_x, chunk_y, chunk_z)]
+    }
+
+    fn get_view<T>(arr: &'a ChunkArray<T>) -> ArrayView::<'a, T, Ix3> {
+        ArrayView::from_shape(Ix3(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE), arr).unwrap()
+    }
+    fn get_view_mut<T>(arr: &'a mut ChunkArray<T>) -> ArrayViewMut::<'a, T, Ix3> {
+        ArrayViewMut::from_shape(Ix3(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE), arr).unwrap()
     }
 
     pub fn generate_flat(&mut self) {
-        self.ids.slice_mut(s![.., .., 0]).fill(4);
-        self.ids.slice_mut(s![.., .., 1..3]).fill(1);
-        self.ids.slice_mut(s![.., .., 3]).fill(2);
+        let mut ids = Self::get_view_mut(&mut self.ids_array);
+        ids.slice_mut(s![.., .., 0]).fill(4);
+        ids.slice_mut(s![.., .., 1..3]).fill(1);
+        ids.slice_mut(s![.., .., 3]).fill(2);
     }
 
     pub fn get_mesh(&self, indices_offset: u32, block_proto_set: &BlockProtoSet) -> (Vec<Vertex>, Vec<u32>) {
         use glam::Vec3A;
+        let ids = Self::get_view(&self.ids_array);
         let mut vertices: Vec<Vertex> = vec![];
 
         // just thread this lol, this is 6*size threads easy
 
-        for (z, slice) in self.ids.axis_iter(Axis(2)).enumerate() {
+        for (z, slice) in ids.axis_iter(Axis(2)).enumerate() {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y, self.z + z as f32), Facing::U, block_proto_set);
             vertices.extend(verts);
         }
-        for (z, slice) in self.ids.axis_iter(Axis(2)).enumerate() {
+        for (z, slice) in ids.axis_iter(Axis(2)).enumerate() {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y, self.z + z as f32), Facing::D, block_proto_set);
             vertices.extend(verts);
         }
-        for (y, slice) in self.ids.axis_iter(Axis(1)).enumerate() {
+        for (y, slice) in ids.axis_iter(Axis(1)).enumerate() {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y + y as f32, self.z), Facing::N, block_proto_set);
             vertices.extend(verts);
         }
-        for (y, slice) in self.ids.axis_iter(Axis(1)).enumerate() {
+        for (y, slice) in ids.axis_iter(Axis(1)).enumerate() {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y + y as f32, self.z), Facing::S, block_proto_set);
             vertices.extend(verts);
         }
-        for (x, slice) in self.ids.axis_iter(Axis(0)).enumerate() {
+        for (x, slice) in ids.axis_iter(Axis(0)).enumerate() {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x + x as f32, self.y, self.z), Facing::E, block_proto_set);
             vertices.extend(verts);
         }
-        for (x, slice) in self.ids.axis_iter(Axis(0)).enumerate() {
+        for (x, slice) in ids.axis_iter(Axis(0)).enumerate() {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x + x as f32, self.y, self.z), Facing::W, block_proto_set);
             vertices.extend(verts);
@@ -79,9 +113,7 @@ impl Chunk {
 
 mod tessellate {
     use super::*;
-    use glam::Vec3A;
-    use ndarray::prelude::*;
-    use ndarray::{Array, ArrayView, Ix1, Ix2, Ix3, Axis};
+    use ndarray::{ArrayView, Ix1, Ix2, Axis};
     use crate::geometry::{Vertex, Facing};
     use crate::block::BlockProtoSet;
 

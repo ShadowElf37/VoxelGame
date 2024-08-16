@@ -1,5 +1,6 @@
+use std::sync::PoisonError;
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
-use std::sync::RwLock;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::mem::{size_of, align_of};
 
 #[derive(Debug)]
@@ -7,15 +8,23 @@ pub enum ArenaError {
     BoundsExceeded,
     DoesNotExist,
     OutOfMemory,
+    WrongArenaHandle,
+    PoisonedLock,
+}
+
+
+pub struct ArenaHandle<'a, T> {
+    index: usize,
+    arena: &'a Arena<T>
 }
 
 
 pub struct Arena<T> {
     memory: *mut RwLock<T>,
     allocated: *mut bool,
-    length: usize,
-    last_known_free: usize,
-    count: usize,
+    pub length: usize,
+    pub last_known_free: usize,
+    pub count: usize,
  
     layout_memory: Layout,
     layout_allocated: Layout,
@@ -46,7 +55,7 @@ impl<T> Drop for Arena<T> {
 
 impl<T> Arena<T> {
     // length in number of T it can hold
-    pub fn new(length: usize) -> Arena<T> {
+    pub fn new(length: usize) -> Self {
         let layout_memory = Layout::from_size_align(size_of::<RwLock<T>>()*length, align_of::<RwLock<T>>()).unwrap();
         let layout_allocated = Layout::from_size_align(size_of::<bool>()*length, align_of::<bool>()).unwrap();
 
@@ -76,9 +85,25 @@ impl<T> Arena<T> {
         }
     }
 
+    fn new_handle(&self, index: usize) -> Result<ArenaHandle<T>, ArenaError> {
+        if index >= self.length {
+            return Err(ArenaError::BoundsExceeded)
+        }
+        if !unsafe{*self.allocated.add(index)} {
+            return Err(ArenaError::DoesNotExist)
+        }
+        Ok(ArenaHandle { index, arena: self })
+    }
+    fn check_handle(&self, handle: &ArenaHandle<T>) -> Result<(), ArenaError> {
+        if !std::ptr::eq(handle.arena, self) {
+            return Err(ArenaError::WrongArenaHandle);
+        }
+        Ok(())
+    }
+
     // make new arena and load collection directly into arena contents
     // you still need to specify a maximum length for the arena
-    pub fn from_iter<I>(length: usize, iterator: I) -> Arena<T> where I: IntoIterator<Item=T> {
+    pub fn from_iter<I>(length: usize, iterator: I) -> Self where I: IntoIterator<Item=T> {
         let mut arena = Arena::<T>::new(length);
         for (i, item) in iterator.into_iter().enumerate() {
             if i == length {
@@ -101,7 +126,7 @@ impl<T> Arena<T> {
     }
 
     // create an object at the next available space - if no space is free, sad!
-    pub fn create(&mut self, obj: T) -> Result<usize, ArenaError> {
+    pub fn create(&mut self, obj: T) -> Result<ArenaHandle<T>, ArenaError> {
         for i in self.last_known_free..self.length {
             if unsafe {self.allocated.add(i).read()} { continue; } // already allocated to that slot, keep going
 
@@ -113,45 +138,41 @@ impl<T> Arena<T> {
 
             self.count += 1;
             self.last_known_free += 1;
-            return Ok(i);
+            return self.new_handle(i);
         }
         Err(ArenaError::OutOfMemory)
     }
 
     // destroy the object at a certain index so that space can be used again (e.g. entity dies)
-    pub fn destroy(&mut self, index: usize) -> Result<(), ArenaError> {
-        //we have to do this error checking manually because the borrow checker gets very angry about &mut
-        if index >= self.length {
-            return Err(ArenaError::BoundsExceeded);
-        }
-        if !unsafe{*self.allocated.add(index)} {
-            return Err(ArenaError::DoesNotExist)
-        }
-
+    pub fn destroy(&mut self, handle: ArenaHandle<T>) -> Result<(), ArenaError> {
+        self.check_handle(&handle)?;
         unsafe {
-            self.memory.add(index).drop_in_place();
-            self.allocated.add(index).write(false);
+            self.memory.add(handle.index).drop_in_place();
+            self.allocated.add(handle.index).write(false);
         }
-
-        self.last_known_free = index;
+        self.last_known_free = handle.index;
         self.count -= 1;
         Ok(())
     }
 
     // get the object at a certain index, wrapped in a RwLock
-    pub fn obtain(&self, index: usize) -> Result<&RwLock<T>, ArenaError> {
-        if index >= self.length {
-            return Err(ArenaError::BoundsExceeded)
-        }
-        if !unsafe{*self.allocated.add(index)} {
-            return Err(ArenaError::DoesNotExist)
-        }
-
-        unsafe {
-            Ok(&*self.memory.add(index))
-        }
+    pub fn fetch_lock(&self, handle: ArenaHandle<T>) -> Result<&RwLock<T>, ArenaError> {
+        self.check_handle(&handle)?;
+        unsafe {Ok(&*self.memory.add(handle.index))}
     }
 
+    pub fn read_lock(&self, handle: ArenaHandle<T>) -> Result<RwLockReadGuard<T>, ArenaError> {
+        match self.fetch_lock(handle)?.read() {
+            Ok(readable) => Ok(readable),
+            Err(_) => Err(ArenaError::PoisonedLock)
+        }
+    }
+    pub fn write_lock(&self, handle: ArenaHandle<T>) -> Result<RwLockWriteGuard<T>, ArenaError> {
+        match self.fetch_lock(handle)?.write() {
+            Ok(writable) => Ok(writable),
+            Err(_) => Err(ArenaError::PoisonedLock)
+        }
+    }
 
     /*pub fn get_mut(&self, index: usize) -> Result<&mut T, &str> {
         self.check_allocated(index)?;
@@ -168,11 +189,11 @@ pub struct ArenaIterator<'a, T> {
 }
 impl<'a, T> Iterator for ArenaIterator<'a, T> {
     type Item = &'a RwLock<T>;
-    fn next(&mut self) -> std::option::Option<<Self as Iterator>::Item> {
+    fn next(&mut self) -> std::option::Option<Self::Item> {
         
         if self.i < self.arena.length {
-            match self.arena.obtain(self.i) {
-                Ok(lock) => {self.i += 1; return Some(lock)}
+            match self.arena.new_handle(self.i) {
+                Ok(handle) => {self.i += 1; return Some(self.arena.fetch_lock(handle).expect("Arena iterator created an invalid pointer somehow"))}
                 _ => {self.i += 1; return self.next()}
             }
         } else {
@@ -184,7 +205,7 @@ impl<'a, T> Iterator for ArenaIterator<'a, T> {
 
 
 
-
+/*
 #[derive(Debug)]
 struct Test<'a> {
     a: &'a str,
@@ -227,3 +248,4 @@ fn main() {
 
     println!("{:?}", a);
 }
+*/

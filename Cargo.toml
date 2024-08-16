@@ -16,6 +16,7 @@ glyphon = { git = "https://github.com/grovesNL/glyphon.git" }
 toml = "0.8.19"
 serde = {version = "1.0.207", features = ["derive"]}
 ndarray = "0.16.0"
+stacker = "0.1.15"
 
 [profile.dev]
 opt-level = 1

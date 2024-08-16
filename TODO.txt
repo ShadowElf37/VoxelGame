@@ -1,5 +1,6 @@
 - GPU visibility computation into mesh generator 
-- gravity and ECS physics system
+- chunks cache meshes and only regenerate themselves upon block set
+- chunks store neighbors for quick lookup
 
 - place/destroy block, mouse click
 - update visibility and mesh when world calls a block update (possibly cpu side re visibility when a single block is updated)

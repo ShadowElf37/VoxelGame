@@ -1,5 +1,6 @@
 extern crate glam;
 
+use std::sync::RwLock;
 use crate::entity;
 
 use glam::{
@@ -13,7 +14,6 @@ pub struct Camera {
     pub fov: f32,
     pub aspect_ratio: f32,
     pub look_sensitivity: f32,
-    pub height: f32,
     pub proj_mat: Mat4,
 }
 
@@ -24,7 +24,6 @@ impl Camera {
             fov,
             aspect_ratio,
             look_sensitivity: if cfg!(target_os = "macos") {0.07} else {0.02},
-            height: 1.6,
             proj_mat: Self::get_proj_mat(fov, aspect_ratio)
         }
     }
@@ -41,10 +40,11 @@ impl Camera {
     fn get_proj_mat(fov: f32, aspect_ratio: f32) -> Mat4 {
         Mat4::perspective_infinite_rh(fov, aspect_ratio, 0.001)
     }
-    fn get_view_mat(&self, entity: &entity::Entity) -> Mat4 {
-        Mat4::look_to_rh(entity.pos + Vec3::Z * self.height, entity.facing, Vec3::Z)
+    fn get_view_mat(&self, entity: &RwLock<entity::Entity>) -> Mat4 {
+        let entity = entity.read().unwrap();
+        Mat4::look_to_rh(entity.pos + Vec3::Z * entity.eye_height, entity.facing, Vec3::Z)
     }
-    pub fn get_projview(&self, entity: &entity::Entity) -> Mat4 {
+    pub fn get_projview(&self, entity: &RwLock<entity::Entity>) -> Mat4 {
         self.proj_mat * self.get_view_mat(entity)
     }
 }

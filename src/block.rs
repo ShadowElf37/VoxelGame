@@ -30,7 +30,7 @@ struct BlockProtoArrayTableWrapper {
 
 
 pub struct BlockProtoSet {
-    pub blocks: Vec<BlockProto>,
+    blocks: Vec<BlockProto>,
 }
 impl BlockProtoSet {
     pub fn from_toml(fp: &str) -> Self {
@@ -47,9 +47,24 @@ impl BlockProtoSet {
             //println!("{:?}", block.tex_face_map);
         }
 
+        let mut actual_blocks = Vec::<BlockProto>::with_capacity(wrapper.blocks.len()+1);
+        // ADD AIR FOR CONVENIENCE
+        actual_blocks.push(BlockProto{
+            name: "Air".to_string(),
+            textures: vec![],
+            tex_face_map: [0,0,0,0,0,0],
+            solid: false,
+            transparent: true,
+        });
+        actual_blocks.extend(wrapper.blocks);
+
         Self {
-            blocks: wrapper.blocks,
+            blocks: actual_blocks,
         }
+    }
+
+    pub fn by_id(&self, block_id: BlockID) -> &BlockProto {
+        &self.blocks[block_id as usize]
     }
 
     pub fn collect_textures(&self) -> Vec<String> {
@@ -65,6 +80,6 @@ impl BlockProtoSet {
     }
 
     pub fn get_tex_id(&self, block_id: BlockID, facing: Facing) -> usize {
-        return self.blocks[block_id as usize - 1].tex_face_map[facing as usize]
+        self.blocks[block_id as usize].tex_face_map[facing as usize]
     }
 }

@@ -8,6 +8,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{WindowEvent, DeviceEvent, Event};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
+use glam::{Vec3};
 
 mod renderer;
 mod geometry;
@@ -96,25 +97,20 @@ impl ApplicationHandler for Game<'_> {
 
         println!("Initializing renderer... ({:.2?})", t.elapsed());
         let mut renderer = pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap()));
-        renderer.load_texture_set(self.world.block_proto_set.collect_textures());
+        renderer.load_texture_set(self.world.block_properties.collect_textures());
         
         println!("Generating chunks... ({:.2?})", t.elapsed());
         self.world.generate_all_chunks_around_player();
-
-        println!("Meshing... ({:.2?})", t.elapsed());
-        let (verts, indices) = self.world.get_all_chunk_meshes();
-        println!("Pushing meshes to GPU... ({:.2?})", t.elapsed());
-        renderer.push_vertices_and_indices(verts, indices);
 
         println!("Done! ({:.2?})", t.elapsed());
 
         self.renderer = Some(renderer);
     }
 
-    fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+    fn device_event(&mut self, event_loop: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         match (self.window.clone(), &mut self.renderer) {
             (Some(window), Some(renderer)) => {
-                let player = &mut self.world.player;
+                let player = &mut self.world.player.write().unwrap();
 
                 match event {
                     DeviceEvent::MouseMotion {delta} => {
@@ -139,14 +135,33 @@ impl ApplicationHandler for Game<'_> {
         
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match (self.window.clone(), &mut self.renderer) {
             (Some(window), Some(renderer)) => {
 
                 let player = &mut self.world.player;
+                let mut player = player.write().unwrap();
 
                 match event {
-                    WindowEvent::CursorMoved { position, .. } => { }
+                    //WindowEvent::CursorMoved { position, .. } => { }
+
+                    WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
+                        drop(player);
+                        let (destroy_location, place_location, _) = self.world.player.read().unwrap().get_block_looking_at(&self.world);
+                        match button {
+                            winit::event::MouseButton::Left => {
+                                self.world.set_block_id_at(destroy_location.x, destroy_location.y, destroy_location.z, 0);
+                            },
+                            winit::event::MouseButton::Right => {
+                                let player_pos = self.world.player.read().unwrap().pos.floor();
+                                if place_location != player_pos && place_location != player_pos + Vec3::Z{
+                                    self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 1);
+                                }
+                            },
+                            winit::event::MouseButton::Middle => (),
+                            _ => ()
+                        }
+                    }
 
                     WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
                         match physical_key {
@@ -158,6 +173,7 @@ impl ApplicationHandler for Game<'_> {
                             PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = true;}
 
                             PhysicalKey::Code(KeyCode::Escape) => {
+                                drop(player);
                                 if self.game_state.paused {
                                     self.on_focus();
                                 } else {
@@ -191,6 +207,7 @@ impl ApplicationHandler for Game<'_> {
                     //    renderer.ui_scale = scale_factor as f32;
                     //}
                     WindowEvent::Focused(f) => {
+                        drop(player);
                         if f {
                             self.on_focus();
                         } else {
@@ -199,24 +216,43 @@ impl ApplicationHandler for Game<'_> {
                     }
                     // ...
                     WindowEvent::RedrawRequested => {
+                        drop(player); // drops the &mut reference to self.world.player so we can obtain it again, this time for self.world
+                        let player = &self.world.player;
+                        let player = player.read().unwrap();
+
                         self.clock.tick();
 
+                        let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
+                        //let looking_at2 = player.get_last_air_looking_at(&self.world);
                         if self.clock.tick % 5 == 0 {
                             let facing = player.facing_in_degrees();
                             renderer.text_manager.set_text_on(
                                 0,
                                 format!(
-                                    "Frame:{} Time:{:.3} Fps:{:.1}\nX={:.2} Y={:.2} Z={:.2}\nφ={:.0}° ϴ={:.0}°\nW:{} H:{}\nPAUSED = {}",
+                                    "Frame={} Time={:.3} FPS={:.1}\nX={:.2} Y={:.2} Z={:.2}\nVx={:.2} Vy={:.2} Vz={:.2}\nφ={:.0}° ϴ={:.0}°\nLooking: \"{}\" ({:.0}, {:.0}, {:.0})\nW:{} H:{}\nPAUSED = {}",
                                     self.clock.tick, self.clock.time, self.clock.tps,
                                     player.pos.x, player.pos.y, player.pos.z,
+                                    player.vel.x, player.vel.y, player.vel.z,
                                     facing.x, facing.y,
+                                    self.world.block_properties.by_id(looking_at_id).name, looking_at_pos.x, looking_at_pos.y, looking_at_pos.z,
+                                    //last_air_pos.x, last_air_pos.y, last_air_pos.z,
                                     renderer.size.width, renderer.size.height,
                                     self.game_state.paused
                                 ).as_str()
                             );
                         }
-                        
+
+                        drop(player);
                         self.world.physics_step(self.clock.tick_time);
+
+                        if self.world.need_block_update {
+                            //println!("Meshing...");
+                            let (verts, indices) = self.world.get_all_chunk_meshes();
+                            //println!("Pushing meshes to GPU...");
+                            renderer.push_vertices_and_indices(verts, indices);
+                            //println!("Done!");
+                            self.world.need_block_update = false;
+                        }
 
                         match renderer.render(&self.world) {
                             Ok(_) => {}
