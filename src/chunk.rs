@@ -37,36 +37,12 @@ impl<'a> Chunk {
     pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) {
         let (chunk_x, chunk_y, chunk_z) = (x.floor()-self.x, y.floor()-self.y, z.floor()-self.z);
         let (chunk_i, chunk_j, chunk_k) = (chunk_x as usize, chunk_y as usize, chunk_z as usize);
-        // if chunk_i > 15 {
-        //     chunk_i = 15;
-        //     println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
-        // }
-        // if chunk_j > 15 {
-        //     chunk_j = 15;
-        //     println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
-        // }
-        // if chunk_k > 15 {
-        //     chunk_k = 15;
-        //     println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
-        // }
         Self::get_view_mut(&mut self.ids_array)[(chunk_i, chunk_j, chunk_k)] = id;
     }
 
     pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
         let (chunk_x, chunk_y, chunk_z) = (x.floor()-self.x, y.floor()-self.y, z.floor()-self.z);
         let (chunk_i, chunk_j, chunk_k) = (chunk_x as usize, chunk_y as usize, chunk_z as usize);
-        // if chunk_i > 15 {
-        //     chunk_i = 15;
-        //     println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
-        // }
-        // if chunk_j > 15 {
-        //     chunk_j = 15;
-        //     println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
-        // }
-        // if chunk_k > 15 {
-        //     chunk_k = 15;
-        //     println!("EXTREMELY BAD ERROR: ({} {} {}) -> ({} {} {}) -> ({} {} {})", x, y, z, chunk_x, chunk_y, chunk_z, chunk_i, chunk_j, chunk_k);
-        // }
         Self::get_view(&self.ids_array)[(chunk_i, chunk_j, chunk_k)]
     }
 
@@ -78,10 +54,12 @@ impl<'a> Chunk {
     }
 
     pub fn generate_flat(&mut self) {
-        let mut ids = Self::get_view_mut(&mut self.ids_array);
-        ids.slice_mut(s![.., .., 0]).fill(4);
-        ids.slice_mut(s![.., .., 1..3]).fill(1);
-        ids.slice_mut(s![.., .., 3]).fill(2);
+        if self.z == 0.0 {
+            let mut ids = Self::get_view_mut(&mut self.ids_array);
+            ids.slice_mut(s![.., .., 0]).fill(4);
+            ids.slice_mut(s![.., .., 1..3]).fill(1);
+            ids.slice_mut(s![.., .., 3]).fill(2);
+        }
     }
 
     pub fn get_mesh(&self, indices_offset: u32, block_proto_set: &BlockProtoSet) -> (Vec<Vertex>, Vec<u32>) {

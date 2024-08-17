@@ -222,14 +222,15 @@ impl ApplicationHandler for Game<'_> {
 
                         self.clock.tick();
 
-                        let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
                         //let looking_at2 = player.get_last_air_looking_at(&self.world);
-                        if self.clock.tick % 5 == 0 {
+                        //if self.clock.tick % 5 == 0 {
+                        if true {
+                            let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
                             let facing = player.facing_in_degrees();
                             renderer.text_manager.set_text_on(
                                 0,
                                 format!(
-                                    "Frame={} Time={:.3} FPS={:.1}\nX={:.2} Y={:.2} Z={:.2}\nVx={:.2} Vy={:.2} Vz={:.2}\nφ={:.0}° ϴ={:.0}°\nLooking: \"{}\" ({:.0}, {:.0}, {:.0})\nW:{} H:{}\nPAUSED = {}",
+                                    "Frame={} Time={:.1} FPS={:.1}\nX=({:.2}, {:.2}, {:.2})\nV=({:.2}, {:.2}, {:.2})\nφ={:.0}° ϴ={:.0}°\nLooking: {} ({:.0}, {:.0}, {:.0})\nW={} H={}\nPAUSED = {}",
                                     self.clock.tick, self.clock.time, self.clock.tps,
                                     player.pos.x, player.pos.y, player.pos.z,
                                     player.vel.x, player.vel.y, player.vel.z,

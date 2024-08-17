@@ -62,8 +62,8 @@ impl Entity {
 
             move_speed: 4.3,
             jump_height: 1.3,
-            acc_rate: 150.0,
-            gravity: 9.8*3.0,
+            acc_rate: 130.0,
+            gravity: 9.8*2.5,
             desired_movement: NO_MOVEMENT,
 
             flying: false,
@@ -123,7 +123,7 @@ impl Entity {
         if self.desired_movement.LEFT {
             self.acc += self.get_moving_rightward(-1.0);
         }
-        
+
         if self.flying {
             if self.desired_movement.UP {
                 self.acc += self.get_moving_up(1.0);
@@ -135,7 +135,7 @@ impl Entity {
             if self.in_air {
                 self.acc.z -= self.gravity;
             } else if self.desired_movement.UP {
-                self.vel.z = (self.jump_height * self.gravity * 2.0).sqrt(); //4.427188
+                self.vel.z = (self.jump_height * self.gravity * 2.0).sqrt(); //sqrt(9.8*2) = 4.427188
             }
         }
     }

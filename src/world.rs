@@ -6,8 +6,8 @@ use crate::entity::*;
 use crate::geometry;
 
 const ENTITY_LIMIT: usize = 128;
-const RENDER_DISTANCE: usize = 1;
-const RENDER_AREA: usize = 4*RENDER_DISTANCE*RENDER_DISTANCE;
+const RENDER_DISTANCE: usize = 2;
+const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
 use glam::f32::{Vec3};
 use crate::block;
@@ -31,45 +31,44 @@ impl World {
     pub fn new() -> Self {
         return Self {
             // render distance changing is easy. `chunks = Arena::from_iter(chunks.iter())`. then, ensure Arena::drop() works.
-            chunks: Arena::<Chunk>::new(RENDER_AREA),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
+            chunks: Arena::<Chunk>::new(RENDER_VOLUME),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
             entities: Arena::<Entity>::new(ENTITY_LIMIT),
 
             block_properties: block::BlockProtoSet::from_toml("config/blocks.toml"),
 
             spawn_point: Vec3::new(0.0, 0.0, 0.0),
             player: RwLock::new(Entity::new(Vec3::new(0.0, 0.0, 5.0))),
-            sky_color: [0.58, 0.93, 0.95, 1.0],
+            sky_color: [150./255., 230./255., 255./255., 1.0],
 
             need_block_update: true,
         };
     }
 
     // return the first non air block you hit (where you want to destroy a block), the last air block you hit (where you want to place a block), and the block id at that spot
-    pub fn cast_ray_to_first_non_air_block(&self, start_pos: Vec3, dir: Vec3, max_distance: f32) -> (Vec3, Vec3, BlockID) {
-        let mut block_id: BlockID = 0;
-        let mut ray_pos = start_pos;
-        let mut last_ray_pos = start_pos;
+    pub fn cast_ray_to_first_non_air_block(&self, start_pos: Vec3, facing: Vec3, max_distance: f32) -> (Vec3, Vec3, BlockID) {
         let midpoint_offset = Vec3::new(0.5, 0.5, 0.5);
-        let mut ray = start_pos.floor()+midpoint_offset-start_pos;
-        let dirs_manhattan = {
-            let dir_manhattan = dir.signum();
-            [dir_manhattan.x*Vec3::X, dir_manhattan.y*Vec3::Y, dir_manhattan.z*Vec3::Z]
-        };
-        let mut current_dist = 0.0;
         let max_distance = max_distance*max_distance;
-        while block_id == 0 && current_dist < max_distance {
-            let candidates: Vec<Vec3> = dirs_manhattan.map(|d| ray+d).into_iter().collect();
-            let errors = candidates.iter().map(|v| v.cross(dir).length_squared());
-            let index = errors.enumerate()
-                .min_by(|(_, a), (_, b)| a.total_cmp(b))
-                .map(|(index, _)| index).unwrap();
-            ray = candidates[index];
+        let dirs_manhattan = {
+            let facing_manhattan = facing.signum();
+            [facing_manhattan.x*Vec3::X, facing_manhattan.y*Vec3::Y, facing_manhattan.z*Vec3::Z]
+        };
 
-            current_dist = ray.length_squared();
+        let mut block_id: BlockID = 0;
+        let mut ray_pos = start_pos.floor()+midpoint_offset;
+        let mut ray = ray_pos-start_pos;
+        let mut last_ray_pos = start_pos;
+
+        while block_id == 0 && ray.length_squared() < max_distance {
+            let candidates = [ray + dirs_manhattan[0], ray + dirs_manhattan[1], ray + dirs_manhattan[2]];
+            let errors = candidates.iter().map(|cand| cand.cross(facing).length_squared());
+            let best_index = errors.enumerate().min_by(|(_, a), (_, b)| a.total_cmp(b)).map(|(index, _)| index).unwrap();
+
+            ray = candidates[best_index];
             last_ray_pos = ray_pos;
             ray_pos = start_pos+ray;
             block_id = self.get_block_id_at(ray_pos.x, ray_pos.y, ray_pos.z);
         }
+
         (ray_pos-midpoint_offset, last_ray_pos-midpoint_offset, block_id)
     }
 
@@ -77,7 +76,7 @@ impl World {
         for chunk in self.chunks.iter() {
             let chunk_rw = chunk.read().unwrap();
             if chunk_rw.check_inside_me(x, y, z) {
-                return Some(chunk)    
+                return Some(chunk)
             }
         }
         None
@@ -105,17 +104,20 @@ impl World {
     }
 
     pub fn generate_all_chunks_around_player(&mut self) {
-        for x in -(RENDER_DISTANCE as i64)..RENDER_DISTANCE as i64 {
-            for y in -(RENDER_DISTANCE as i64)..RENDER_DISTANCE as i64 {
-                let mut new_chunk = Chunk::new(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, 0.0);
-                new_chunk.generate_flat();
-                self.chunks.create(new_chunk).unwrap();
+        for x in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
+            for y in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
+                for z in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
+                    println!("Chunk generated at {} {} {}", x, y, z);
+                    let mut new_chunk = Chunk::new(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
+                    new_chunk.generate_flat();
+                    self.chunks.create(new_chunk).unwrap();
+                }
             }
         }
-        self.set_block_id_at(3.0, 3.0, 3.0, 0);
-        self.set_block_id_at(4.0, 3.0, 3.0, 0);
-        self.set_block_id_at(3.0, 4.0, 3.0, 0);
-        self.set_block_id_at(4.0, 4.0, 3.0, 0);
+        // self.set_block_id_at(3.0, 3.0, 3.0, 0);
+        // self.set_block_id_at(4.0, 3.0, 3.0, 0);
+        // self.set_block_id_at(3.0, 4.0, 3.0, 0);
+        // self.set_block_id_at(4.0, 4.0, 3.0, 0);
     }
     pub fn get_all_chunk_meshes(&mut self) -> (Vec<geometry::Vertex>, Vec<u32>) {
         let mut vertices = Vec::<geometry::Vertex>::new();
