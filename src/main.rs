@@ -67,12 +67,14 @@ impl Game<'_> {
         let window = self.window.clone().unwrap();
         let renderer = self.renderer.as_ref().unwrap();
 
-        self.hold_cursor = true;
-        window.set_cursor_visible(false);
-        window.set_cursor_position(renderer.window_center_px).unwrap();
+        if !self.game_state.paused {
+            self.hold_cursor = true;
+            window.set_cursor_visible(false);
+            window.set_cursor_position(renderer.window_center_px).unwrap();
 
-        #[cfg(target_os = "macos")]
-        window.set_cursor_grab(winit::window::CursorGrabMode::Locked);
+            #[cfg(target_os = "macos")]
+            window.set_cursor_grab(winit::window::CursorGrabMode::Locked);
+        }
     }
     pub fn on_defocus(&mut self) {
         let window = self.window.clone().unwrap();
@@ -164,22 +166,26 @@ impl ApplicationHandler for Game<'_> {
                     }
 
                     WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
+                        if !self.game_state.paused {
+                            match physical_key {
+                                PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = true;}
+                                PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = true;}
+                                PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = true;}
+                                PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = true;}
+                                PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = true;}
+                                PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = true;}
+                                _ => ()
+                            }
+                        }
                         match physical_key {
-                            PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = true;}
-                            PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = true;}
-                            PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = true;}
-                            PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = true;}
-                            PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = true;}
-                            PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = true;}
-
                             PhysicalKey::Code(KeyCode::Escape) => {
                                 drop(player);
-                                if self.game_state.paused {
+                                self.game_state.paused = !self.game_state.paused;  
+                                if !self.game_state.paused { // inverse because we unpaused on the line above. necessary because on_focus queries pause state
                                     self.on_focus();
                                 } else {
                                     self.on_defocus();
                                 }
-                                self.game_state.paused = !self.game_state.paused;             
                             }
                             _ => ()
                         }
