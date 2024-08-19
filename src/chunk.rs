@@ -2,6 +2,7 @@ use crate::block::{BlockProtoSet, BlockID};
 use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
 use ndarray::{Ix3, Axis};
+use noise::NoiseFn;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;
@@ -110,6 +111,24 @@ impl<'a> Chunk {
         };
 
         (vertices, indices)
+    }
+
+    pub fn generate_random(&mut self, seed: u32) {
+        let perlin = noise::Perlin::new(0);
+        let scale = 0.1;
+        let height = 10.0;
+
+        let mut ids = Self::get_view_mut(&mut self.ids_array);
+        for x in 0..CHUNK_SIZE {
+            for y in 0..CHUNK_SIZE {
+                for z in 0..CHUNK_SIZE {
+                    let val = perlin.get([x as f64 * scale, y as f64 * scale, z as f64 * scale]);
+                    if val > 0.0 {
+                        ids[(x, y, z)] = 1;
+                    }
+                }
+            }
+        }
     }
 }
 
