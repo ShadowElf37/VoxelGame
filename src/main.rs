@@ -174,6 +174,7 @@ impl ApplicationHandler for Game<'_> {
                                 PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = true;}
                                 PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = true;}
                                 PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = true;}
+                                PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.SPRINT = true;}
                                 _ => ()
                             }
                         }
@@ -198,6 +199,7 @@ impl ApplicationHandler for Game<'_> {
                             PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = false;}
                             PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = false;}
                             PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = false;}
+                            PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.SPRINT = false;}
                             _ => ()
                         }
                     }

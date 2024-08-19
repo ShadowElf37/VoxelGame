@@ -17,6 +17,7 @@ pub struct DesiredMovement {
     pub LEFT: bool,
     pub UP: bool,
     pub DOWN: bool,
+    pub SPRINT: bool,
 }
 const NO_MOVEMENT: DesiredMovement = DesiredMovement {
     FORWARD: false,
@@ -25,6 +26,7 @@ const NO_MOVEMENT: DesiredMovement = DesiredMovement {
     LEFT: false,
     UP: false,
     DOWN: false,
+    SPRINT: false,
 };
 
 
@@ -106,17 +108,19 @@ impl Entity {
             self.acc_rate = 150.0;
         }
 
+        let sprint_factor = if self.desired_movement.SPRINT { 2.0 } else { 1.0 };
+
         if self.desired_movement.FORWARD {
-            self.acc += self.get_moving_forward_xy(1.0);
+            self.acc += self.get_moving_forward_xy(1.0) * sprint_factor;
         }
         if self.desired_movement.BACKWARD {
-            self.acc += self.get_moving_forward_xy(-1.0);
+            self.acc += self.get_moving_forward_xy(-1.0) * sprint_factor;
         }
         if self.desired_movement.RIGHT {
-            self.acc += self.get_moving_rightward(1.0);
+            self.acc += self.get_moving_rightward(1.0) * sprint_factor;
         }
         if self.desired_movement.LEFT {
-            self.acc += self.get_moving_rightward(-1.0);
+            self.acc += self.get_moving_rightward(-1.0) * sprint_factor;
         }
 
         if self.flying {
