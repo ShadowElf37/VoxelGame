@@ -74,11 +74,6 @@ impl Entity {
     pub fn get_block_looking_at(&self, world: &world::World) -> (Vec3, Vec3, BlockID) {
         world.cast_ray_to_first_non_air_block(self.pos + Vec3::Z * self.eye_height, self.facing, 4.0)
     }
-    /*pub fn get_block_just_before_looking_at(&self, world: &world::World) -> Vec3 {
-        let (entered_pos, _) = self.get_block_looking_at(world);
-        let delta = self.facing * 0.1;
-        let just_before = entered_pos - delta;
-    }*/
 
     pub fn facing_in_degrees(&self) -> Vec2 {
         Vec2::new(

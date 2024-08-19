@@ -2,6 +2,7 @@
 - chunks cache meshes and only regenerate locally upon block update
 - chunks store neighbors for quick lookup, in fact it's like a linked list, much better even for get_block_id(x,y,z) because you can travel up the chain from anywhere and it's usually better
 - proper hitbox for player
+- ECS
 
 - chunk loading/unloading
 
@@ -10,13 +11,12 @@
 
 - terrain generation from perlin noise
 
-- pause menu with egui-wgpu and state condition for key presses
+- pause menu with egui-wgpu
 - fog with noise
-- transparency pass
 
-- lods
+- lods?
 
-- use vertex indices in render pass to do cpu-side frustum/occlusion culling
+- use vertex slice in render pass to do cpu-side frustum/occlusion culling
 
 
 - sky shader (even if it's just solid color, currently &world is passed to the renderer which is weird)

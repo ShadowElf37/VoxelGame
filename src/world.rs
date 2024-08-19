@@ -38,7 +38,7 @@ impl World {
 
             spawn_point: Vec3::new(0.0, 0.0, 0.0),
             player: RwLock::new(Entity::new(Vec3::new(0.0, 0.0, 5.0))),
-            sky_color: [150./255., 230./255., 255./255., 1.0],
+            sky_color: [155./255., 230./255., 255./255., 1.0],
 
             need_block_update: true,
         };
