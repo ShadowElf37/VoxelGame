@@ -133,12 +133,11 @@ impl<'a> Chunk {
     // }
 
     pub fn generate_planet(&mut self) {
-        let noise_map = complexplanet::complexplanet::generate(self.x as f64, (self.x + CHUNK_SIZE_F) as f64, self.y as f64, (self.y + CHUNK_SIZE_F) as f64);
     
         let mut ids = Self::get_view_mut(&mut self.ids_array);
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
-                let z = noise_map.get_value((self.x + x as f32) as usize, (self.y + y as f32) as usize);
+                let z = complexplanet::complexplanet::generate(self.x + x as f32, self.y + y as f32);
                 let scaled_z = (z * 16.0).round() as f32;
 
                 if scaled_z >= self.z && scaled_z < CHUNK_SIZE_F + self.z {

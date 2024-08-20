@@ -60,7 +60,8 @@
 pub mod complexplanet {
     use noise::{core::worley::ReturnType, utils::*, *};
 
-    pub fn generate(x_min: f64, x_max: f64, y_min: f64, y_max: f64) -> NoiseMap {
+    pub fn generate(x: f32, y: f32) -> f64
+     {
         /// Planet seed. Change this to generate a different planet.
         const CURRENT_SEED: u32 = 0;
     
@@ -1656,7 +1657,7 @@ pub mod complexplanet {
         // does this by selecting the output value from the continents-with-
         // badlands subgroup if the corresponding output value from the
         // continents-with-badlands subgroup is far from sea level.  Otherwise,
-        // this selector module selects the output value from the add-rivers-to-
+        // this selector modu_le selects the output value from the add-rivers-to-
         // continents module.
         let continentsWithRivers_se = Select::new(
             &continentsWithBadlands,
@@ -1665,77 +1666,79 @@ pub mod complexplanet {
         )
         .set_bounds(SEA_LEVEL, CONTINENT_HEIGHT_SCALE + SEA_LEVEL)
         .set_falloff(CONTINENT_HEIGHT_SCALE - SEA_LEVEL);
+
+        return continentsWithRivers_se.get([x as f64, y as f64, 0.0]);
     
         // 4: [Continents-with-rivers subgroup]: Caches the output value from the
         // blended-rivers-to-continents module.
-        let continentsWithRivers = Cache::new(continentsWithRivers_se);
+        // let continentsWithRivers = Cache::new(continentsWithRivers_se);
     
-        // /////////////////////////////////////////////////////////////////////////
-        // Function subgroup: unscaled final planet (1 noise function)
-        //
-        // This subgroup simply caches the output value from the continent-with-
-        // rivers subgroup to contribute to the final output value.
-        //
+        // // /////////////////////////////////////////////////////////////////////////
+        // // Function subgroup: unscaled final planet (1 noise function)
+        // //
+        // // This subgroup simply caches the output value from the continent-with-
+        // // rivers subgroup to contribute to the final output value.
+        // //
     
-        // 1: [Unscaled-final-planet subgroup]: Caches the output value from the
-        //    continent-with-rivers subgroup.
-        let unscaledFinalPlanet = Cache::new(continentsWithRivers);
+        // // 1: [Unscaled-final-planet subgroup]: Caches the output value from the
+        // //    continent-with-rivers subgroup.
+        // let unscaledFinalPlanet = Cache::new(continentsWithRivers);
     
-        //    debug::render_noise_module3(
-        //        "complexplanet_images/30_0_unscaledFinalPlanet\
-        //         .png",
-        //        &unscaledFinalPlanet,
-        //        1024,
-        //        1024,
-        //        100,
-        //    );
-        //
-        //    debug::render_noise_module3(
-        //        "complexplanet_images/30_1_unscaledFinalPlanet\
-        //         .png",
-        //        &unscaledFinalPlanet,
-        //        2048,
-        //        2048,
-        //        1000,
-        //    );
-        //
-        //    debug::render_noise_module3(
-        //        "complexplanet_images/30_2_unscaledFinalPlanet\
-        //         .png",
-        //        &unscaledFinalPlanet,
-        //        2048,
-        //        2048,
-        //        10000,
-        //    );
-        //
-        //    debug::render_noise_module3(
-        //        "complexplanet_images/30_3_unscaledFinalPlanet\
-        //         .png",
-        //        &unscaledFinalPlanet,
-        //        4096,
-        //        4096,
-        //        100000,
-        //    );
+        // //    debug::render_noise_module3(
+        // //        "complexplanet_images/30_0_unscaledFinalPlanet\
+        // //         .png",
+        // //        &unscaledFinalPlanet,
+        // //        1024,
+        // //        1024,
+        // //        100,
+        // //    );
+        // //
+        // //    debug::render_noise_module3(
+        // //        "complexplanet_images/30_1_unscaledFinalPlanet\
+        // //         .png",
+        // //        &unscaledFinalPlanet,
+        // //        2048,
+        // //        2048,
+        // //        1000,
+        // //    );
+        // //
+        // //    debug::render_noise_module3(
+        // //        "complexplanet_images/30_2_unscaledFinalPlanet\
+        // //         .png",
+        // //        &unscaledFinalPlanet,
+        // //        2048,
+        // //        2048,
+        // //        10000,
+        // //    );
+        // //
+        // //    debug::render_noise_module3(
+        // //        "complexplanet_images/30_3_unscaledFinalPlanet\
+        // //         .png",
+        // //        &unscaledFinalPlanet,
+        // //        4096,
+        // //        4096,
+        // //        100000,
+        // //    );
     
-        // pub mod complex_planet {
-        //     pub fn generate_noise_map(x_min: f64, x_max: f64, y_min: f64, y_max: f64) -> NoiseMap {
-        //         let noise_map = noise::utils::PlaneMapBuilder::new(&unscaledFinalPlanet)
-        //             .set_size((x_max-x_min) as usize, (y_max-y_min) as usize)
-        //             .set_x_bounds(x_min, x_max)
-        //             .set_y_bounds(y_min, y_max)
-        //             .build();
+        // // pub mod complex_planet {
+        // //     pub fn generate_noise_map(x_min: f64, x_max: f64, y_min: f64, y_max: f64) -> NoiseMap {
+        // //         let noise_map = noise::utils::PlaneMapBuilder::new(&unscaledFinalPlanet)
+        // //             .set_size((x_max-x_min) as usize, (y_max-y_min) as usize)
+        // //             .set_x_bounds(x_min, x_max)
+        // //             .set_y_bounds(y_min, y_max)
+        // //             .build();
         
-        //         return noise_map
-        //     }
-        // }
+        // //         return noise_map
+        // //     }
+        // // }
     
-        let noise_map = PlaneMapBuilder::new(&continentDef)
-            .set_size((x_max - x_min) as usize, (y_max - y_min) as usize)
-            .set_x_bounds(x_min, x_max)
-            .set_y_bounds(y_min, y_max)
-            .build();
+        // let noise_map = PlaneMapBuilder::new(&continentDef)
+        //     .set_size((x_max - x_min) as usize, (y_max - y_min) as usize)
+        //     .set_x_bounds(x_min, x_max)
+        //     .set_y_bounds(y_min, y_max)
+        //     .build();
     
-        return noise_map
+        // return noise_map
     
     }
 }
