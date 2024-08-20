@@ -1,4 +1,4 @@
-[![VoxelGame Actions Status](https://github.com/ShadowElf37/VoxelGame/workflows/rust.yml/badge.svg)](https://github.com/ShadowElf37/VoxelGame/actions)
+[![VoxelGame Actions Status](https://github.com/ShadowElf37/VoxelGame/actions/workflows/rust.yml/badge.svg)](https://github.com/ShadowElf37/VoxelGame/actions)
 
 ## Voxel Game
 
