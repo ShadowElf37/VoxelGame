@@ -2,6 +2,7 @@ use crate::block::{BlockProtoSet, BlockID};
 use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
 use ndarray::{Ix3, Axis};
+use noise::NoiseFn;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;
@@ -110,6 +111,73 @@ impl<'a> Chunk {
         };
 
         (vertices, indices)
+    }
+
+    // pub fn generate_random(&mut self, seed: u32) {
+    //     let perlin = noise::Perlin::new(0);
+    //     let scale = 0.1;
+    //     let height = 10.0;
+
+    //     let mut ids = Self::get_view_mut(&mut self.ids_array);
+    //     for x in 0..CHUNK_SIZE {
+    //         for y in 0..CHUNK_SIZE {
+    //             for z in 0..CHUNK_SIZE {
+    //                 let val = perlin.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale, self.z as f64 + z as f64 * scale]);
+    //                 if val > 0.0 {
+    //                     ids[(x, y, z)] = 1;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // pub fn generate_planet(&mut self) {
+    //     let scale = 0.05;
+    //     let noise_gen = noise::Perlin::new(0);
+    //     let mut ids = Self::get_view_mut(&mut self.ids_array);
+    //     for x in 0..CHUNK_SIZE {
+    //         for y in 0..CHUNK_SIZE {
+    //             let z = noise_gen.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale]);
+    //             let scaled_z = (z * 16.0).floor() as f32;
+    //             if scaled_z >= self.z && scaled_z < CHUNK_SIZE_F + self.z {
+    //                 for z_fill in 0..(scaled_z - self.z) as usize {
+    //                     ids[(x, y, z_fill)] = 1;
+    //                 }
+    //                 // Set the top surface block
+    //                 ids[(x, y, (scaled_z - self.z) as usize)] = 2; // Assuming 1 is the top surface block ID
+    //             }
+    //         }
+    //     }
+    // }
+
+    pub fn generate_planet(&mut self) {
+        let scale = 0.05;
+        let noise_gen = noise::Perlin::new(0);
+        let mut ids = Self::get_view_mut(&mut self.ids_array);
+        
+        for x in 0..CHUNK_SIZE {
+            for y in 0..CHUNK_SIZE {
+                let z = noise_gen.get([(self.x as f64 + x as f64) * scale, (self.y as f64 + y as f64) * scale]);
+                let scaled_z = (z * 16.0).floor() as f32;
+                if scaled_z >= self.z {
+                    let top_z = (scaled_z - self.z) as usize;
+                    if scaled_z < CHUNK_SIZE_F + self.z {
+                        // Fill with stone below the dirt layer
+                        if top_z > 3 {
+                            ids.slice_mut(s![x, y, (self.z as usize)..(top_z - 3)]).fill(2); // block ID 2 is stone
+                        }
+                        // Fill with dirt
+                        if top_z >= 3 {
+                            ids.slice_mut(s![x, y, (top_z - 3)..top_z]).fill(5); // block ID 5 is dirt
+                        }
+                        // Set the top surface block to grass
+                        ids.slice_mut(s![x, y, top_z]).fill(4); // block ID 4 is grass
+                    } else {
+                        ids.slice_mut(s![x, y, ..]).fill(2); // block ID 2 is stone
+                    }
+                }
+            }
+        }
     }
 }
 

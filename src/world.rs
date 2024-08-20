@@ -6,7 +6,7 @@ use crate::entity::*;
 use crate::geometry;
 
 const ENTITY_LIMIT: usize = 128;
-const RENDER_DISTANCE: usize = 2;
+const RENDER_DISTANCE: usize = 4;
 const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
 use glam::f32::{Vec3};
@@ -109,16 +109,13 @@ impl World {
                 for z in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
                     println!("Chunk generated at {} {} {}", x, y, z);
                     let mut new_chunk = Chunk::new(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
-                    new_chunk.generate_flat();
+                    new_chunk.generate_planet();
                     self.chunks.create(new_chunk).unwrap();
                 }
             }
         }
-        // self.set_block_id_at(3.0, 3.0, 3.0, 0);
-        // self.set_block_id_at(4.0, 3.0, 3.0, 0);
-        // self.set_block_id_at(3.0, 4.0, 3.0, 0);
-        // self.set_block_id_at(4.0, 4.0, 3.0, 0);
     }
+    
     pub fn get_all_chunk_meshes(&mut self) -> (Vec<geometry::Vertex>, Vec<u32>) {
         let mut vertices = Vec::<geometry::Vertex>::new();
         let mut indices = Vec::<u32>::new();

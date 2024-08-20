@@ -24,8 +24,7 @@
 
 - dont duplicate e.g. dirt.png when loading textures (for dirt and grass block) - have it set the offset to the previous texture's index after finding it
 
-
-
+- block add/destroy operations work when paused when they shouldn't
 
 lighting, physics in thread
 own their own clocks (change nomenclature to "tick" instead of "frame")
