@@ -20,6 +20,7 @@ mod texturing;
 mod block;
 mod chunk;
 mod memarena;
+mod complexplanet;
 
 #[derive(Default)]
 pub struct GameState {

@@ -1,8 +1,6 @@
-extern crate noise;
-
 use noise::{core::worley::ReturnType, utils::*, *};
 
-mod utils;
+//mod utils;
 
 /// This example demonstrates how to use the noise-rs library to generate
 /// terrain elevations for a complex planetary surface.
@@ -1749,48 +1747,4 @@ fn main() {
 
     // write_height_map_to_csv(&height_map, "unscaledFinalPlanet.csv").expect("Failed to write CSV file");
 
-    utils::write_image_to_file(
-        &ImageRenderer::new()
-            .set_gradient(ColorGradient::new().build_terrain_gradient())
-            .render(&noise_map),
-        "unscaledFinalPlanet.png",
-    );
-
-    let noise_map = PlaneMapBuilder::new(&unscaledFinalPlanet)
-        .set_size(1024, 1024)
-        .set_x_bounds(-0.5, 0.5)
-        .set_y_bounds(-0.5, 0.5)
-        .build();
-
-    utils::write_image_to_file(
-        &ImageRenderer::new()
-            .set_gradient(ColorGradient::new().build_terrain_gradient())
-            .render(&noise_map),
-        "unscaledFinalPlanet_4x_zoom.png",
-    );
-
-    let noise_map = PlaneMapBuilder::new(&unscaledFinalPlanet)
-        .set_size(1024, 1024)
-        .set_x_bounds(-0.0, 0.25)
-        .set_y_bounds(-0.125, 0.125)
-        .build();
-
-    utils::write_image_to_file(
-        &ImageRenderer::new()
-            .set_gradient(ColorGradient::new().build_terrain_gradient())
-            .render(&noise_map),
-        "unscaledFinalPlanet_16x_zoom.png",
-    );
-
-    utils::write_image_to_file(
-        &ImageRenderer::new()
-            .set_gradient(ColorGradient::new().build_terrain_gradient())
-            .render(
-                &SphereMapBuilder::new(unscaledFinalPlanet)
-                    .set_size(1024, 1024)
-                    .set_bounds(-90.0, 90.0, -180.0, 180.0)
-                    .build(),
-            ),
-        "unscaledFinalPlanet_sphere.png",
-    );
 }
