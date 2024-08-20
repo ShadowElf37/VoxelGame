@@ -16,3 +16,7 @@ textures = ["dirt.png",]
 [[blocks]] # id 4
 name = "Bedrock"
 textures = ["bedrock.png",]
+
+[[blocks]] # id 5
+name = "Gold Block"
+textures = ["gold_block.png",]
