@@ -112,7 +112,7 @@ impl ApplicationHandler for Game<'_> {
     fn device_event(&mut self, event_loop: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         match (self.window.clone(), &mut self.renderer) {
             (Some(window), Some(renderer)) => {
-                let player = &mut self.world.player.write().unwrap();
+                let mut player = self.world.entities.write_lock(self.world.player).unwrap();
 
                 match event {
                     DeviceEvent::MouseMotion {delta} => {
@@ -141,21 +141,17 @@ impl ApplicationHandler for Game<'_> {
         match (self.window.clone(), &mut self.renderer) {
             (Some(window), Some(renderer)) => {
 
-                let player = &mut self.world.player;
-                let mut player = player.write().unwrap();
-
                 match event {
                     //WindowEvent::CursorMoved { position, .. } => { }
 
                     WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
-                        drop(player);
-                        let (destroy_location, place_location, _) = self.world.player.read().unwrap().get_block_looking_at(&self.world);
+                        let (destroy_location, place_location, _) = self.world.entities.read_lock(self.world.player).unwrap().get_block_looking_at(&self.world);
                         match button {
                             winit::event::MouseButton::Left => {
                                 self.world.set_block_id_at(destroy_location.x, destroy_location.y, destroy_location.z, 0);
                             },
                             winit::event::MouseButton::Right => {
-                                let player_pos = self.world.player.read().unwrap().pos.floor();
+                                let player_pos = self.world.entities.read_lock(self.world.player).unwrap().pos.floor();
                                 if place_location != player_pos && place_location != player_pos + Vec3::Z{
                                     self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 1);
                                 }
@@ -167,6 +163,7 @@ impl ApplicationHandler for Game<'_> {
 
                     WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
                         if !self.game_state.paused {
+                            let mut player = self.world.entities.write_lock(self.world.player).unwrap();
                             match physical_key {
                                 PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = true;}
                                 PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = true;}
@@ -180,7 +177,6 @@ impl ApplicationHandler for Game<'_> {
                         }
                         match physical_key {
                             PhysicalKey::Code(KeyCode::Escape) => {
-                                drop(player);
                                 self.game_state.paused = !self.game_state.paused;  
                                 if !self.game_state.paused { // inverse because we unpaused on the line above. necessary because on_focus queries pause state
                                     self.on_focus();
@@ -192,6 +188,7 @@ impl ApplicationHandler for Game<'_> {
                         }
                     }
                     WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Released, repeat:false, ..}, is_synthetic: false, ..} => {
+                        let mut player = self.world.entities.write_lock(self.world.player).unwrap();
                         match physical_key {
                             PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = false;}
                             PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = false;}
@@ -215,7 +212,6 @@ impl ApplicationHandler for Game<'_> {
                     //    renderer.ui_scale = scale_factor as f32;
                     //}
                     WindowEvent::Focused(f) => {
-                        drop(player);
                         if f {
                             self.on_focus();
                         } else {
@@ -224,9 +220,7 @@ impl ApplicationHandler for Game<'_> {
                     }
                     // ...
                     WindowEvent::RedrawRequested => {
-                        drop(player); // drops the &mut reference to self.world.player so we can obtain it again, this time for self.world
-                        let player = &self.world.player;
-                        let player = player.read().unwrap();
+                        let player = self.world.entities.read_lock(self.world.player).unwrap();
 
                         self.clock.tick();
 

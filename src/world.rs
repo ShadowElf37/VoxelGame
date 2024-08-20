@@ -11,7 +11,7 @@ const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
 use glam::f32::{Vec3};
 use crate::block;
-use crate::memarena::Arena;
+use crate::memarena::{Arena, ArenaHandle};
 use crate::chunk::{Chunk, CHUNK_SIZE_F};
 
 pub struct World {
@@ -22,22 +22,24 @@ pub struct World {
 
     pub spawn_point: Vec3,
     pub sky_color: [f32; 4],
-    pub player: RwLock<Entity>,
+    pub player: ArenaHandle<Entity>,
 
     pub need_block_update: bool,
 }
 
 impl World {
     pub fn new() -> Self {
+        let mut entities = Arena::<Entity>::new(ENTITY_LIMIT);
+        let player = entities.create(Entity::new(Vec3::new(0.0, 0.0, 5.0))).unwrap();
         return Self {
             // render distance changing is easy. `chunks = Arena::from_iter(chunks.iter())`. then, ensure Arena::drop() works.
             chunks: Arena::<Chunk>::new(RENDER_VOLUME),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
-            entities: Arena::<Entity>::new(ENTITY_LIMIT),
+            entities,
 
             block_properties: block::BlockProtoSet::from_toml("config/blocks.toml"),
 
             spawn_point: Vec3::new(0.0, 0.0, 0.0),
-            player: RwLock::new(Entity::new(Vec3::new(0.0, 0.0, 5.0))),
+            player,
             sky_color: [155./255., 230./255., 255./255., 1.0],
 
             need_block_update: true,
@@ -72,11 +74,10 @@ impl World {
         (ray_pos-midpoint_offset, last_ray_pos-midpoint_offset, block_id)
     }
 
-    pub fn get_chunk_at(&self, x: f32, y: f32, z: f32) -> Option<&RwLock<Chunk>> {
-        for chunk in self.chunks.iter() {
-            let chunk_rw = chunk.read().unwrap();
-            if chunk_rw.check_inside_me(x, y, z) {
-                return Some(chunk)
+    pub fn get_chunk_at(&self, x: f32, y: f32, z: f32) -> Option<ArenaHandle<Chunk>> {
+        for handle in self.chunks.iter() {
+            if self.chunks.read_lock(handle).unwrap().check_inside_me(x, y, z) {
+                return Some(handle)
             }
         }
         None
@@ -85,8 +86,8 @@ impl World {
     pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
         // returns 0 if the chunk isn't loaded
         match self.get_chunk_at(x, y, z) {
-            Some(chunk) => {
-                chunk.read().unwrap().get_block_id_at(x, y, z)
+            Some(handle) => {
+                self.chunks.read_lock(handle).unwrap().get_block_id_at(x, y, z)
             }
             None => 0
         }
@@ -94,8 +95,8 @@ impl World {
     pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) -> Option<()> {
         // returns None and noops if the chunk isn't loaded
         match self.get_chunk_at(x, y, z) {
-            Some(chunk) => {
-                chunk.write().unwrap().set_block_id_at(x, y, z, id)
+            Some(handle) => {
+                self.chunks.write_lock(handle).unwrap().set_block_id_at(x, y, z, id)
             }
             None => return None
         }
@@ -121,8 +122,8 @@ impl World {
         let mut indices = Vec::<u32>::new();
         let mut indices_offset = 0u32;
 
-        for chunk in self.chunks.iter() {
-            let (v, i) = chunk.read().unwrap().get_mesh(indices_offset, &self.block_properties);
+        for handle in self.chunks.iter() {
+            let (v, i) = self.chunks.read_lock(handle).unwrap().get_mesh(indices_offset, &self.block_properties);
             indices_offset += v.len() as u32;
             vertices.extend(v);
             indices.extend(i);
@@ -131,8 +132,8 @@ impl World {
         (vertices, indices)
     }
 
-    fn do_physics(&self, dt: f32, e: &RwLock<Entity>) {
-        let mut e = e.write().unwrap();
+    fn do_physics(&self, dt: f32, e: ArenaHandle<Entity>) {
+        let mut e = self.entities.write_lock(e).unwrap();
         let mut dx = Vec3::ZERO;
         let mut dv = Vec3::ZERO;
         let (x, y, z) = (e.pos.x, e.pos.y, e.pos.z);
@@ -185,7 +186,6 @@ impl World {
     }
 
     pub fn physics_step(&mut self, dt: f32) {
-        self.do_physics(dt, &self.player);
         for e in self.entities.iter() {
             self.do_physics(dt, e);
         }

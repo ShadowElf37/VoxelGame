@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::sync::PoisonError;
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -8,14 +9,27 @@ pub enum ArenaError {
     BoundsExceeded,
     DoesNotExist,
     OutOfMemory,
-    WrongArenaHandle,
     PoisonedLock,
 }
 
-
-pub struct ArenaHandle<'a, T> {
+#[derive(Debug)]
+pub struct ArenaHandle<T> {
     index: usize,
-    arena: &'a Arena<T>
+    phantom_arena: PhantomData<T>
+}
+impl<T> ArenaHandle<T> {
+    pub fn new(index: usize) -> Self {
+        Self {
+            index,
+            phantom_arena: PhantomData,
+        }
+    }
+}
+impl<T> Copy for ArenaHandle<T> {}
+impl<T> Clone for ArenaHandle<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 
@@ -54,6 +68,7 @@ impl<T> Drop for Arena<T> {
 }
 
 impl<T> Arena<T> {
+    //type MyArenaHandle =  ArenaHandle<T>;
     // length in number of T it can hold
     pub fn new(length: usize) -> Self {
         let layout_memory = Layout::from_size_align(size_of::<RwLock<T>>()*length, align_of::<RwLock<T>>()).unwrap();
@@ -92,13 +107,7 @@ impl<T> Arena<T> {
         if !unsafe{*self.allocated.add(index)} {
             return Err(ArenaError::DoesNotExist)
         }
-        Ok(ArenaHandle { index, arena: self })
-    }
-    fn check_handle(&self, handle: &ArenaHandle<T>) -> Result<(), ArenaError> {
-        if !std::ptr::eq(handle.arena, self) {
-            return Err(ArenaError::WrongArenaHandle);
-        }
-        Ok(())
+        Ok(ArenaHandle::new(index))
     }
 
     // make new arena and load collection directly into arena contents
@@ -145,7 +154,6 @@ impl<T> Arena<T> {
 
     // destroy the object at a certain index so that space can be used again (e.g. entity dies)
     pub fn destroy(&mut self, handle: ArenaHandle<T>) -> Result<(), ArenaError> {
-        self.check_handle(&handle)?;
         unsafe {
             self.memory.add(handle.index).drop_in_place();
             self.allocated.add(handle.index).write(false);
@@ -157,7 +165,6 @@ impl<T> Arena<T> {
 
     // get the object at a certain index, wrapped in a RwLock
     pub fn fetch_lock(&self, handle: ArenaHandle<T>) -> Result<&RwLock<T>, ArenaError> {
-        self.check_handle(&handle)?;
         unsafe {Ok(&*self.memory.add(handle.index))}
     }
 
@@ -188,12 +195,12 @@ pub struct ArenaIterator<'a, T> {
     arena: &'a Arena<T>,
 }
 impl<'a, T> Iterator for ArenaIterator<'a, T> {
-    type Item = &'a RwLock<T>;
+    type Item = ArenaHandle<T>;
     fn next(&mut self) -> std::option::Option<Self::Item> {
         
         if self.i < self.arena.length {
             match self.arena.new_handle(self.i) {
-                Ok(handle) => {self.i += 1; return Some(self.arena.fetch_lock(handle).expect("Arena iterator created an invalid pointer somehow"))}
+                Ok(handle) => {self.i += 1; return Some(handle)}
                 _ => {self.i += 1; return self.next()}
             }
         } else {

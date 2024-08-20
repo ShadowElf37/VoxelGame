@@ -535,7 +535,7 @@ impl<'a> Renderer<'a> {
 
             // FRAME DATA UNIFORM
             let data = FrameData {
-                projview: self.camera.get_projview(&world.player).to_cols_array_2d()
+                projview: self.camera.get_projview(world.entities.fetch_lock(world.player).unwrap()).to_cols_array_2d()
             };
             self.queue.write_buffer(
                 &self.frame_data_buffer,
