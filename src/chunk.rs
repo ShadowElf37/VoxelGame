@@ -1,4 +1,3 @@
-use crate::complexplanet;
 use crate::block::{BlockProtoSet, BlockID};
 use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
@@ -133,15 +132,17 @@ impl<'a> Chunk {
     // }
 
     pub fn generate_planet(&mut self) {
-    
+        let scale = 0.05;
+        let noise_gen = noise::Perlin::new(0);
         let mut ids = Self::get_view_mut(&mut self.ids_array);
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
-                let z = complexplanet::complexplanet::generate(self.x + x as f32, self.y + y as f32);
-                let scaled_z = (z * 16.0).round() as f32;
-
+                let z = noise_gen.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale]);
+                let scaled_z = (z * 16.0).floor() as f32;
+                //println!("{} {}", z, scaled_z);
                 if scaled_z >= self.z && scaled_z < CHUNK_SIZE_F + self.z {
-                    ids[(x, y, scaled_z as usize)] = 1;
+                    //println!("{} {} {} {} {}", z, scaled_z, CHUNK_SIZE_F + self.z, CHUNK_SIZE_F, self.z);
+                    ids[(x, y, (scaled_z-self.z) as usize)] = 2;
                 }
             }
         }
