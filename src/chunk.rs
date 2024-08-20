@@ -122,7 +122,7 @@ impl<'a> Chunk {
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
-                    let val = perlin.get([x as f64 * scale, y as f64 * scale, z as f64 * scale]);
+                    let val = perlin.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale, self.z as f64 + z as f64 * scale]);
                     if val > 0.0 {
                         ids[(x, y, z)] = 1;
                     }
