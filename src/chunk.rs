@@ -157,7 +157,7 @@ impl<'a> Chunk {
         
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
-                let z = noise_gen.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale]);
+                let z = noise_gen.get([(self.x as f64 + x as f64) * scale, (self.y as f64 + y as f64) * scale]);
                 let scaled_z = (z * 16.0).floor() as f32;
                 if scaled_z >= self.z {
                     let top_z = (scaled_z - self.z) as usize;

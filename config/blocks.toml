@@ -1,4 +1,6 @@
-# there is no block with id 0 - it is permanently reserved for air
+# block id 0
+# air
+# not accessible by texture
 
 [[blocks]] # id 1
 name = "Bedrock"
