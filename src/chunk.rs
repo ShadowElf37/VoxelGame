@@ -1,5 +1,3 @@
-
-
 use crate::complexplanet;
 use crate::block::{BlockProtoSet, BlockID};
 use crate::geometry::{Vertex, Facing};
@@ -135,13 +133,14 @@ impl<'a> Chunk {
     }
 
     pub fn generate_planet(&mut self) {
-        let noise_map = complexplanet::generate(self.x as f64, (self.x+CHUNK_SIZE_F) as f64, self.y as f64, (self.y+CHUNK_SIZE_F) as f64);
-
+        let noise_map = complexplanet::complexplanet::generate(self.x as f64, (self.x + CHUNK_SIZE_F) as f64, self.y as f64, (self.y + CHUNK_SIZE_F) as f64);
+    
         let mut ids = Self::get_view_mut(&mut self.ids_array);
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
-                let z = noise_map.get_value((self.x + x as f32) as usize, (self.y + y as f32) as usize);
-                ids[(x, y, z.round() as usize)] = 1;
+                let noise_value = noise_map.get_value((self.x + x as f32) as usize, (self.y + y as f32) as usize);
+                let scaled_value = (-256.0 + ((noise_value + 1.0) / 2.0) * 512.0).round() as isize;
+                ids[(x, y, scaled_value as usize)] = 1;
             }
         }
     }
