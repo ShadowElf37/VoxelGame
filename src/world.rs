@@ -24,7 +24,7 @@ pub struct World {
     pub sky_color: [f32; 4],
     pub player: ArenaHandle<Entity>,
 
-    pub need_block_update: bool,
+    pub need_block_update: Vec<ArenaHandle<Chunk>>,
 }
 
 impl World {
@@ -42,7 +42,7 @@ impl World {
             player,
             sky_color: [155./255., 230./255., 255./255., 1.0],
 
-            need_block_update: true,
+            need_block_update: vec![],
         };
     }
 
@@ -96,12 +96,18 @@ impl World {
         // returns None and noops if the chunk isn't loaded
         match self.get_chunk_at(x, y, z) {
             Some(handle) => {
-                self.chunks.write_lock(handle).unwrap().set_block_id_at(x, y, z, id)
+                self.chunks.write_lock(handle).unwrap().set_block_id_at(x, y, z, id);
+                self.need_block_update.push(handle);
             }
             None => return None
         }
-        self.need_block_update = true;
         Some(())
+    }
+
+    pub fn generate_chunk(&mut self, x: f32, y: f32, z: f32) {
+        let mut new_chunk = Chunk::new(x, y, z);
+        new_chunk.generate_planet();
+        self.need_block_update.push(self.chunks.create(new_chunk).unwrap());
     }
 
     pub fn generate_all_chunks_around_player(&mut self) {
@@ -109,9 +115,7 @@ impl World {
             for y in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
                 for z in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
                     println!("Chunk generated at {} {} {}", x, y, z);
-                    let mut new_chunk = Chunk::new(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
-                    new_chunk.generate_planet();
-                    self.chunks.create(new_chunk).unwrap();
+                    self.generate_chunk(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
                 }
             }
         }
@@ -122,11 +126,17 @@ impl World {
         let mut indices = Vec::<u32>::new();
         let mut indices_offset = 0u32;
 
+        for handle in self.need_block_update.iter() {
+            println!("Updated {:?}", handle);
+            self.chunks.write_lock(*handle).unwrap().make_mesh(&self.block_properties);
+        }
+
         for handle in self.chunks.iter() {
-            let (v, i) = self.chunks.read_lock(handle).unwrap().get_mesh(indices_offset, &self.block_properties);
-            indices_offset += v.len() as u32;
+            let chunk = self.chunks.read_lock(handle).unwrap();
+            let v = &chunk.mesh;
             vertices.extend(v);
-            indices.extend(i);
+            indices.extend(chunk.get_indices(indices_offset));
+            indices_offset += v.len() as u32;
         }
 
         (vertices, indices)

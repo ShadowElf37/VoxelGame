@@ -1,5 +1,8 @@
 - GPU visibility computation into mesh generator 
-- chunks cache meshes and only regenerate locally upon block update
+
+- update ArenaHandle debug text
+- thread chunk meshing both inside and out (high importance)
+
 - chunks store neighbors for quick lookup, in fact it's like a linked list, much better even for get_block_id(x,y,z) because you can travel up the chain from anywhere and it's usually better
 - proper hitbox for player
 - ECS

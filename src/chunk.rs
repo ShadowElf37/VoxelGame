@@ -10,12 +10,14 @@ pub const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
 
 type ChunkArray<T> = [T; CHUNK_VOLUME];
 
+#[derive(Debug)]
 pub struct Chunk {
     pub x: f32,
     pub y: f32,
     pub z: f32,
     ids_array: ChunkArray<BlockID>,
     visibility_array: ChunkArray<u8>,
+    pub mesh: Vec<Vertex>,
 }
 
 impl<'a> Chunk {
@@ -25,6 +27,7 @@ impl<'a> Chunk {
             x, y, z,
             ids_array: [0; CHUNK_VOLUME],
             visibility_array: [1; CHUNK_VOLUME],
+            mesh: vec![],
         }
         //})
     }
@@ -63,7 +66,7 @@ impl<'a> Chunk {
         }
     }
 
-    pub fn get_mesh(&self, indices_offset: u32, block_proto_set: &BlockProtoSet) -> (Vec<Vertex>, Vec<u32>) {
+    pub fn make_mesh(&mut self, block_proto_set: &BlockProtoSet) {
         use glam::Vec3A;
         let ids = Self::get_view(&self.ids_array);
         let mut vertices: Vec<Vertex> = vec![];
@@ -102,53 +105,20 @@ impl<'a> Chunk {
         }
 
         //println!("{:?}", vertices.len());
-        let mut indices: Vec<u32> = vec![];
-        for i in 0..vertices.len()/4 {
+
+        self.mesh = vertices;
+    }
+
+    pub fn get_indices(&self, indices_offset: u32) -> Vec<u32> {
+        let mut indices = Vec::<u32>::with_capacity(self.mesh.len()/4*6);
+        for i in 0..self.mesh.len()/4 {
             indices.extend(
                 [indices_offset, indices_offset+1, indices_offset+2, indices_offset+2, indices_offset+3, indices_offset]
                 .into_iter().map(|x| (x + (i as u32) * 4) )
             )
         };
-
-        (vertices, indices)
+        return indices
     }
-
-    // pub fn generate_random(&mut self, seed: u32) {
-    //     let perlin = noise::Perlin::new(0);
-    //     let scale = 0.1;
-    //     let height = 10.0;
-
-    //     let mut ids = Self::get_view_mut(&mut self.ids_array);
-    //     for x in 0..CHUNK_SIZE {
-    //         for y in 0..CHUNK_SIZE {
-    //             for z in 0..CHUNK_SIZE {
-    //                 let val = perlin.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale, self.z as f64 + z as f64 * scale]);
-    //                 if val > 0.0 {
-    //                     ids[(x, y, z)] = 1;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    // pub fn generate_planet(&mut self) {
-    //     let scale = 0.05;
-    //     let noise_gen = noise::Perlin::new(0);
-    //     let mut ids = Self::get_view_mut(&mut self.ids_array);
-    //     for x in 0..CHUNK_SIZE {
-    //         for y in 0..CHUNK_SIZE {
-    //             let z = noise_gen.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale]);
-    //             let scaled_z = (z * 16.0).floor() as f32;
-    //             if scaled_z >= self.z && scaled_z < CHUNK_SIZE_F + self.z {
-    //                 for z_fill in 0..(scaled_z - self.z) as usize {
-    //                     ids[(x, y, z_fill)] = 1;
-    //                 }
-    //                 // Set the top surface block
-    //                 ids[(x, y, (scaled_z - self.z) as usize)] = 2; // Assuming 1 is the top surface block ID
-    //             }
-    //         }
-    //     }
-    // }
 
     pub fn generate_planet(&mut self) {
         let scale = 0.05;

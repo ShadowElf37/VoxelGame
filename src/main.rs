@@ -248,13 +248,13 @@ impl ApplicationHandler for Game<'_> {
                         drop(player);
                         self.world.physics_step(self.clock.tick_time);
 
-                        if self.world.need_block_update {
+                        if !self.world.need_block_update.is_empty() {
                             //println!("Meshing...");
                             let (verts, indices) = self.world.get_all_chunk_meshes();
                             //println!("Pushing meshes to GPU...");
                             renderer.push_vertices_and_indices(verts, indices);
                             //println!("Done!");
-                            self.world.need_block_update = false;
+                            self.world.need_block_update.clear();
                         }
 
                         match renderer.render(&self.world) {
