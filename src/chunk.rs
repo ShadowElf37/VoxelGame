@@ -7,7 +7,7 @@ pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;
 pub const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
 
-type ChunkArray<T> = [T; CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE];
+type ChunkArray<T> = [T; CHUNK_VOLUME];
 
 pub struct Chunk {
     pub x: f32,
