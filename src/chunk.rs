@@ -114,23 +114,23 @@ impl<'a> Chunk {
         (vertices, indices)
     }
 
-    pub fn generate_random(&mut self, seed: u32) {
-        let perlin = noise::Perlin::new(0);
-        let scale = 0.1;
-        let height = 10.0;
+    // pub fn generate_random(&mut self, seed: u32) {
+    //     let perlin = noise::Perlin::new(0);
+    //     let scale = 0.1;
+    //     let height = 10.0;
 
-        let mut ids = Self::get_view_mut(&mut self.ids_array);
-        for x in 0..CHUNK_SIZE {
-            for y in 0..CHUNK_SIZE {
-                for z in 0..CHUNK_SIZE {
-                    let val = perlin.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale, self.z as f64 + z as f64 * scale]);
-                    if val > 0.0 {
-                        ids[(x, y, z)] = 1;
-                    }
-                }
-            }
-        }
-    }
+    //     let mut ids = Self::get_view_mut(&mut self.ids_array);
+    //     for x in 0..CHUNK_SIZE {
+    //         for y in 0..CHUNK_SIZE {
+    //             for z in 0..CHUNK_SIZE {
+    //                 let val = perlin.get([self.x as f64 + x as f64 * scale, self.y as f64 + y as f64 * scale, self.z as f64 + z as f64 * scale]);
+    //                 if val > 0.0 {
+    //                     ids[(x, y, z)] = 1;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     pub fn generate_planet(&mut self) {
         let noise_map = complexplanet::complexplanet::generate(self.x as f64, (self.x + CHUNK_SIZE_F) as f64, self.y as f64, (self.y + CHUNK_SIZE_F) as f64);
@@ -139,8 +139,11 @@ impl<'a> Chunk {
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
                 let noise_value = noise_map.get_value((self.x + x as f32) as usize, (self.y + y as f32) as usize);
-                let scaled_value = (-256.0 + ((noise_value + 1.0) / 2.0) * 512.0).round() as isize;
-                ids[(x, y, scaled_value as usize)] = 1;
+                let scaled_value = (-8.0 + ((noise_value + 1.0) / 2.0) * 16.0).round() as isize;
+
+                if scaled_value >= 0 && scaled_value < CHUNK_SIZE as isize {
+                    ids[(x, y, scaled_value as usize)] = 1;
+                }
             }
         }
     }

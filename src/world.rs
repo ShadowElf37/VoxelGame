@@ -104,7 +104,6 @@ impl World {
     }
 
     pub fn generate_all_chunks_around_player(&mut self) {
-        let seed = 42; // You can make this dynamic or configurable
         for x in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
             for y in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
                 for z in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
