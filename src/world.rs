@@ -6,7 +6,7 @@ use crate::entity::*;
 use crate::geometry;
 
 const ENTITY_LIMIT: usize = 128;
-const RENDER_DISTANCE: usize = 2;
+const RENDER_DISTANCE: usize = 4;
 const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
 use glam::f32::{Vec3};

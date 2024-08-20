@@ -1,22 +1,26 @@
 # there is no block with id 0 - it is permanently reserved for air
 
 [[blocks]] # id 1
+name = "Bedrock"
+textures = ["bedrock.png",]
+
+[[blocks]] # id 2
+name = "Stone"
+textures = ["stone.png",]
+
+[[blocks]] # id 3
 name = "Cobblestone"
 textures = ["cobblestone.png",]
 
-[[blocks]] # id 2
+[[blocks]] # id 4
 name = "Grass Block"
 textures = ["grass_block_side.png", "grass_block_top.png", "dirt.png",]
 tex_face_map = [0, 0, 0, 0, 1, 2]
 
-[[blocks]] # id 3
+[[blocks]] # id 5
 name = "Dirt"
 textures = ["dirt.png",]
 
-[[blocks]] # id 4
-name = "Bedrock"
-textures = ["bedrock.png",]
-
-[[blocks]] # id 5
+[[blocks]] # id 6
 name = "Gold Block"
 textures = ["gold_block.png",]
