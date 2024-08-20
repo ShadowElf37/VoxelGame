@@ -110,7 +110,7 @@ impl World {
                 for z in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
                     println!("Chunk generated at {} {} {}", x, y, z);
                     let mut new_chunk = Chunk::new(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
-                    new_chunk.generate_random(seed);
+                    new_chunk.generate_planet();
                     self.chunks.create(new_chunk).unwrap();
                 }
             }

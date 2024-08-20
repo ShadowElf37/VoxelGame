@@ -59,7 +59,7 @@ use noise::{core::worley::ReturnType, utils::*, *};
 /// A description for each group and subgroup can be found above the source
 /// code for that group and subgroup.
 #[allow(non_snake_case)]
-fn main() {
+pub fn generate(x_min: f64, x_max: f64, y_min: f64, y_max: f64) -> NoiseMap {
     /// Planet seed. Change this to generate a different planet.
     const CURRENT_SEED: u32 = 0;
 
@@ -1717,19 +1717,12 @@ fn main() {
     //    );
 
     let noise_map = PlaneMapBuilder::new(&unscaledFinalPlanet)
-        .set_size(1024, 1024)
-        .set_x_bounds(-2.0, 2.0)
-        .set_y_bounds(-2.0, 2.0)
+        .set_size((x_max-x_min) as usize, (y_max-y_min) as usize)
+        .set_x_bounds(x_min, x_max)
+        .set_y_bounds(y_min, y_max)
         .build();
 
-    let mut height_map = vec![vec![0.0; 1024]; 1024];
-
-    // Iterate over the noise map and extract the height values
-    for y in 0..1024 {
-        for x in 0..1024 {
-            height_map[y][x] = noise_map.get_value(x, y);
-        }
-    }
+    return noise_map;
 
     // use std::error::Error;
     // use csv::Writer;
