@@ -138,11 +138,11 @@ impl<'a> Chunk {
         let mut ids = Self::get_view_mut(&mut self.ids_array);
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
-                let noise_value = noise_map.get_value((self.x + x as f32) as usize, (self.y + y as f32) as usize);
-                let scaled_value = (-8.0 + ((noise_value + 1.0) / 2.0) * 16.0).round() as isize;
+                let z = noise_map.get_value((self.x + x as f32) as usize, (self.y + y as f32) as usize);
+                let scaled_z = (z * 16.0).round() as f32;
 
-                if scaled_value >= 0 && scaled_value < CHUNK_SIZE as isize {
-                    ids[(x, y, scaled_value as usize)] = 1;
+                if scaled_z >= self.z && scaled_z < CHUNK_SIZE_F + self.z {
+                    ids[(x, y, scaled_z as usize)] = 1;
                 }
             }
         }
