@@ -126,20 +126,22 @@ impl<'a> Chunk {
                 if scaled_z >= self.z {
                     let top_z = (scaled_z - self.z) as usize;
                     if scaled_z < CHUNK_SIZE_F + self.z {
-                        // Fill with stone below the dirt layer
-                        if top_z > 3 {
-                            ids.slice_mut(s![x, y, (self.z as usize)..(top_z - 3)]).fill(2); // block ID 2 is stone
-                        }
-                        // Fill with dirt
-                        if top_z >= 3 {
-                            ids.slice_mut(s![x, y, (top_z - 3)..top_z]).fill(5); // block ID 5 is dirt
-                        }
-                        // Set the top surface block to grass
                         ids.slice_mut(s![x, y, top_z]).fill(4); // block ID 4 is grass
                     } else {
                         ids.slice_mut(s![x, y, ..]).fill(2); // block ID 2 is stone
                     }
                 }
+                let dirt_z1 = scaled_z-1.0;
+                if dirt_z1 >= self.z && dirt_z1 < CHUNK_SIZE_F + self.z {
+                    ids.slice_mut(s![x, y, (dirt_z1-self.z) as usize]).fill(5);
+                    ids.slice_mut(s![x, y, 0..(dirt_z1-self.z) as usize]).fill(2);
+                }
+                // let dirt_z2 = scaled_z-2.0;
+                // if dirt_z2 >= self.z && dirt_z2 < CHUNK_SIZE_F + self.z {
+                //     ids.slice_mut(s![x, y, (dirt_z2-self.z) as usize]).fill(5);
+                    
+                // }
+                
             }
         }
     }
