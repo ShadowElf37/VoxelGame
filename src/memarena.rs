@@ -31,6 +31,11 @@ impl<T> Clone for ArenaHandle<T> {
         *self
     }
 }
+// impl<T> std::fmt::Debug for ArenaHandle<T> where T: std::fmt::Debug {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct(format!("ArenaHandle<{}>", T::fmt(T, f))).finish()
+//     }
+// }
 
 
 pub struct Arena<T> {

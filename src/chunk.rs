@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+use std::sync::Arc;
 use crate::block::{BlockProtoSet, BlockID};
 use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
@@ -66,47 +68,39 @@ impl<'a> Chunk {
         }
     }
 
-    pub fn make_mesh(&mut self, block_proto_set: &BlockProtoSet) {
+    pub fn make_mesh(&mut self, block_proto_set: &BlockProtoSet, tp: &rayon::ThreadPool) {
         use glam::Vec3A;
         let ids = Self::get_view(&self.ids_array);
-        let mut vertices: Vec<Vertex> = vec![];
+        let mut vertices = Mutex::new(vec![]);
 
         // just thread this lol, this is 6*size threads easy
 
-        for (z, slice) in ids.axis_iter(Axis(2)).enumerate() {
+        use rayon::prelude::*;
+        ids.axis_iter(Axis(2)).enumerate().par_bridge().for_each(|(z, slice)| {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y, self.z + z as f32), Facing::U, block_proto_set);
-            vertices.extend(verts);
-        }
-        for (z, slice) in ids.axis_iter(Axis(2)).enumerate() {
-            let squares = tessellate::tessellate_slice(slice);
+            vertices.lock().unwrap().extend(verts);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y, self.z + z as f32), Facing::D, block_proto_set);
-            vertices.extend(verts);
-        }
-        for (y, slice) in ids.axis_iter(Axis(1)).enumerate() {
+            vertices.lock().unwrap().extend(verts);
+        });
+        ids.axis_iter(Axis(1)).enumerate().par_bridge().for_each(|(y, slice)| {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y + y as f32, self.z), Facing::N, block_proto_set);
-            vertices.extend(verts);
-        }
-        for (y, slice) in ids.axis_iter(Axis(1)).enumerate() {
-            let squares = tessellate::tessellate_slice(slice);
+            vertices.lock().unwrap().extend(verts);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y + y as f32, self.z), Facing::S, block_proto_set);
-            vertices.extend(verts);
-        }
-        for (x, slice) in ids.axis_iter(Axis(0)).enumerate() {
+            vertices.lock().unwrap().extend(verts);
+        });
+        ids.axis_iter(Axis(0)).enumerate().par_bridge().for_each(|(x, slice)| {
             let squares = tessellate::tessellate_slice(slice);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x + x as f32, self.y, self.z), Facing::E, block_proto_set);
-            vertices.extend(verts);
-        }
-        for (x, slice) in ids.axis_iter(Axis(0)).enumerate() {
-            let squares = tessellate::tessellate_slice(slice);
+            vertices.lock().unwrap().extend(verts);
             let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x + x as f32, self.y, self.z), Facing::W, block_proto_set);
-            vertices.extend(verts);
-        }
+            vertices.lock().unwrap().extend(verts);
+        });
 
         //println!("{:?}", vertices.len());
 
-        self.mesh = vertices;
+        self.mesh = (vertices.get_mut().unwrap()).to_vec();
     }
 
     pub fn get_indices(&self, indices_offset: u32) -> Vec<u32> {

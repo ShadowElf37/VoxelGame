@@ -153,7 +153,7 @@ impl ApplicationHandler for Game<'_> {
                             winit::event::MouseButton::Right => {
                                 let player_pos = self.world.entities.read_lock(self.world.player).unwrap().pos.floor();
                                 if place_location != player_pos && place_location != player_pos + Vec3::Z{
-                                    self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 1);
+                                    self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 6);
                                 }
                             },
                             winit::event::MouseButton::Middle => (),
@@ -248,14 +248,19 @@ impl ApplicationHandler for Game<'_> {
                         drop(player);
                         self.world.physics_step(self.clock.tick_time);
 
+                        
                         if !self.world.need_block_update.is_empty() {
+                            let t = std::time::Instant::now();
                             //println!("Meshing...");
                             let (verts, indices) = self.world.get_all_chunk_meshes();
+                            println!("{:?}", t.elapsed());
                             //println!("Pushing meshes to GPU...");
                             renderer.push_vertices_and_indices(verts, indices);
                             //println!("Done!");
                             self.world.need_block_update.clear();
+                            println!("{:?}", t.elapsed());
                         }
+
 
                         match renderer.render(&self.world) {
                             Ok(_) => {}

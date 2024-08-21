@@ -25,6 +25,7 @@ pub struct World {
     pub player: ArenaHandle<Entity>,
 
     pub need_block_update: Vec<ArenaHandle<Chunk>>,
+    thread_pool: rayon::ThreadPool,
 }
 
 impl World {
@@ -43,6 +44,7 @@ impl World {
             sky_color: [155./255., 230./255., 255./255., 1.0],
 
             need_block_update: vec![],
+            thread_pool: rayon::ThreadPoolBuilder::new().build().unwrap(),
         };
     }
 
@@ -128,7 +130,7 @@ impl World {
 
         for handle in self.need_block_update.iter() {
             println!("Updated {:?}", handle);
-            self.chunks.write_lock(*handle).unwrap().make_mesh(&self.block_properties);
+            self.chunks.write_lock(*handle).unwrap().make_mesh(&self.block_properties, &self.thread_pool);
         }
 
         for handle in self.chunks.iter() {
