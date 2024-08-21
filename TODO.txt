@@ -1,6 +1,5 @@
 - GPU visibility computation into mesh generator 
 
-- update ArenaHandle debug text
 - thread chunk meshing both inside and out (high importance)
 - be very careful with the vertex buffer
 

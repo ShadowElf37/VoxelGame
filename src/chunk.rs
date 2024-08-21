@@ -20,6 +20,7 @@ pub struct Chunk {
     ids_array: ChunkArray<BlockID>,
     visibility_array: ChunkArray<u8>,
     pub mesh: Vec<Vertex>,
+    pub ready_to_display: bool,
 }
 
 impl<'a> Chunk {
@@ -30,6 +31,7 @@ impl<'a> Chunk {
             ids_array: [0; CHUNK_VOLUME],
             visibility_array: [1; CHUNK_VOLUME],
             mesh: vec![],
+            ready_to_display: false,
         }
         //})
     }

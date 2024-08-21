@@ -56,7 +56,7 @@ impl Entity {
             pos: pos,
             vel: Vec3::new(0.0, 0.0, 0.0),
             acc: Vec3::new(0.0, 0.0, 0.0),
-            facing: Vec3::new(0.0, 1.0, 0.0),
+            facing: Vec3::new(0.0, 1.0, 0.0).normalize(),
 
             eye_height: 1.6,
             height: 1.8,
@@ -102,7 +102,7 @@ impl Entity {
     pub fn update_time_independent_acceleration(&mut self){
         self.acc = Vec3::ZERO;
 
-        if self.in_air {
+        if self.in_air && !self.flying {
             self.acc_rate = 10.0;
         } else {
             self.acc_rate = 150.0;
