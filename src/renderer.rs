@@ -144,7 +144,7 @@ impl TextManager {
 }
 
 pub struct Renderer<'a> {
-    device: wgpu::Device,
+    pub device: wgpu::Device,
     queue: wgpu::Queue,
 
     window: Arc<winit::window::Window>,
@@ -161,9 +161,8 @@ pub struct Renderer<'a> {
     // for main 3d rendering, not ui stuff (that will be in UILayers)
     pub pipeline: Option<wgpu::RenderPipeline>,
     pub shader: wgpu::ShaderModule,
-    pub vertex_buffer: Option<wgpu::Buffer>,
     pub index_buffer: Option<wgpu::Buffer>,
-    index_count: usize,
+    index_counts: Vec<u32>,
     depth_texture_view: wgpu::TextureView,
     depth_texture_sampler: wgpu::Sampler,
     depth_stencil_state: Option<wgpu::DepthStencilState>,
@@ -348,9 +347,8 @@ impl<'a> Renderer<'a> {
 
             pipeline: None,
             shader,
-            vertex_buffer: None,
             index_buffer: None,
-            index_count: 0,
+            index_counts: vec![],
             depth_texture_view,
             depth_texture_sampler,
             depth_stencil_state,
@@ -365,14 +363,7 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    pub fn push_vertices_and_indices(&mut self, verts: Vec<Vertex>, indices: Vec<u32>) {
-        self.vertex_buffer = Some(self.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&verts),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        ));
+    pub fn push_indices(&mut self, indices: Vec<u32>, index_offsets: Vec<u32>) {
         self.index_buffer = Some(self.device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Index Buffer"),
@@ -380,7 +371,7 @@ impl<'a> Renderer<'a> {
                 usage: wgpu::BufferUsages::INDEX,
             }
         ));
-        self.index_count = indices.len();
+        self.index_counts = index_offsets;
     }
 
     fn create_main_pipeline(&self) -> wgpu::RenderPipeline {
@@ -398,15 +389,15 @@ impl<'a> Renderer<'a> {
             }
         );        
 
+        //let vb = &(0..world::RENDER_VOLUME).map(|_| geometry::Vertex::desc()).collect::<Vec<_>>();
+        //println!("{:?}", vb.len());
         self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &self.shader,
                 entry_point: "vs_main", // 1.
-                buffers: &[
-                    geometry::Vertex::desc(),
-                ], // 2.
+                buffers: &[geometry::Vertex::desc()], // 2.
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState { // 3.
@@ -544,15 +535,20 @@ impl<'a> Renderer<'a> {
             );
 
             // SEND IT ALL IN
-            render_pass.set_pipeline(self.pipeline.as_ref().unwrap()); // 2.
-            render_pass.set_bind_group(0, &self.frame_data_bind_group, &[]);
-            for (i, texset) in self.texture_sets.iter().enumerate() {
-                render_pass.set_bind_group((i+1) as u32, &texset.bind_group, &[]);
-            }
+            
             // the .slice(..) will control frustum culling when the time comes
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.as_ref().expect("A vertex buffer was never pushed to the GPU!").slice(..));
-            render_pass.set_index_buffer(self.index_buffer.as_ref().expect("An index buffer was never pushed to the GPU!").slice(..), wgpu::IndexFormat::Uint32); // 1.
-            render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1); // 2.
+            for (i, handle) in world.chunks.iter().enumerate() {
+                render_pass.set_pipeline(self.pipeline.as_ref().unwrap()); // 2.
+                render_pass.set_bind_group(0, &self.frame_data_bind_group, &[]);
+                for (i, texset) in self.texture_sets.iter().enumerate() {
+                    render_pass.set_bind_group((i+1) as u32, &texset.bind_group, &[]);
+                }
+
+                let chunk = world.chunks.read_lock(handle).unwrap();
+                render_pass.set_vertex_buffer(0, chunk.vertex_buffer.as_ref().expect("A vertex buffer was never pushed to the GPU!").slice(..));
+                render_pass.set_index_buffer(chunk.index_buffer.as_ref().expect("An index buffer was never pushed to the GPU!").slice(..), wgpu::IndexFormat::Uint32); // 1.
+                render_pass.draw_indexed(0..chunk.index_count, 0, 0..1); // 2.
+            }
 
             self.text_manager.render(&mut render_pass);
         }

@@ -21,6 +21,9 @@ pub struct Chunk {
     visibility_array: ChunkArray<u8>,
     pub mesh: Vec<Vertex>,
     pub ready_to_display: bool,
+    pub vertex_buffer: Option<wgpu::Buffer>,
+    pub index_buffer: Option<wgpu::Buffer>,
+    pub index_count: u32,
 }
 
 impl<'a> Chunk {
@@ -32,6 +35,9 @@ impl<'a> Chunk {
             visibility_array: [1; CHUNK_VOLUME],
             mesh: vec![],
             ready_to_display: false,
+            vertex_buffer: None,
+            index_buffer: None,
+            index_count: 0,
         }
         //})
     }
@@ -70,6 +76,25 @@ impl<'a> Chunk {
         }
     }
 
+    pub fn make_vertex_buffer(&mut self, device: &impl wgpu::util::DeviceExt) {
+        self.vertex_buffer = Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&self.mesh),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        ));
+        let indices = self.get_indices(0);
+        self.index_buffer = Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        ));
+        self.index_count = indices.len() as u32;
+    }
+
     pub fn make_mesh(&mut self, block_proto_set: &BlockProtoSet, tp: &rayon::ThreadPool) {
         use glam::Vec3A;
         let ids = Self::get_view(&self.ids_array);
@@ -104,6 +129,12 @@ impl<'a> Chunk {
         //println!("{:?}", vertices.len());
 
         self.mesh = (vertices.get_mut().unwrap()).to_vec();
+        if self.vertex_buffer.is_some() || self.index_buffer.is_some() {
+            self.vertex_buffer.as_ref().unwrap().destroy();
+            self.index_buffer.as_ref().unwrap().destroy();
+            self.vertex_buffer = None;
+            self.index_buffer = None;
+        }
     }
 
     pub fn get_indices(&self, indices_offset: u32) -> Vec<u32> {

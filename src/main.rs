@@ -255,11 +255,11 @@ impl ApplicationHandler for Game<'_> {
                         if self.world.spawn_mesh_updates() {
                             let t = std::time::Instant::now();
                             //println!("Meshing...");
-                            let (verts, indices) = self.world.get_all_chunk_meshes();
+                            self.world.get_all_chunk_meshes(&renderer.device);
                             //println!("{:?}, {:?}", verts, indices);
                             println!("{:?}", t.elapsed());
                             //println!("Pushing meshes to GPU...");
-                            renderer.push_vertices_and_indices(verts, indices);
+                            //renderer.push_indices(indices, index_offsets);
                             //println!("Done!");
                             //self.world.need_mesh_update.lock().unwrap().clear();
                             println!("{:?}", t.elapsed());
