@@ -19,6 +19,7 @@ ndarray = "0.16.0"
 stacker = "0.1.15"
 noise = { version = "0.9.0", features = ["images"] }
 rayon = "1.1.10"
+rand = "0.8.5"
 #queues = "1.0.2"
 #tokio = "1.39.3"
 

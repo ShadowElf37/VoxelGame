@@ -15,6 +15,7 @@ dependencies = [
  "ndarray",
  "noise",
  "pollster",
+ "rand",
  "rayon",
  "serde",
  "stacker",

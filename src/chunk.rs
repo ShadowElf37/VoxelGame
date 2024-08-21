@@ -77,6 +77,7 @@ impl<'a> Chunk {
 
         // just thread this lol, this is 6*size threads easy
 
+        // THESE ITERATORS ARE ALL BLOCKING
         use rayon::prelude::*;
         ids.axis_iter(Axis(2)).enumerate().par_bridge().for_each(|(z, slice)| {
             let squares = tessellate::tessellate_slice(slice);
@@ -285,6 +286,7 @@ mod tessellate {
 
             // sq.4 will never be 0 because the mesher ignores blocks with id 0
             let tex_id = block_proto_set.get_tex_id(sq.4 as BlockID, facing.clone());
+            //let tex_id = (rand::random::<f64>()*5.0+1.0) as u32;
 
             let face = (match facing {
                 // fix normals and uvs by changing the order of the vertices, which are flipped for NWD

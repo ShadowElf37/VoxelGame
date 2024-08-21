@@ -126,7 +126,7 @@ impl World {
     //     // self.thread_pool.install(||{Self::loop_checking_for_chunk_updates(tp, chunks_mutex.clone(), mesh_update, gen_update)});
     //     async_std::task::spawn(self.loop_checking_for_chunk_updates());
     // }
-    pub fn check_for_chunk_updates(&self) {
+    pub fn spawn_chunk_updates(&self) {
         let mut gen_update_lock = self.need_generation_update.lock().unwrap();
         loop {
             match gen_update_lock.pop_front() {
@@ -145,9 +145,31 @@ impl World {
             }
         }
     }
+    pub fn spawn_mesh_updates(&self) -> bool {
+        let mut got_any_updates = false;
+        let mut mesh_update_lock = self.need_mesh_update.lock().unwrap();
+        loop {
+            match mesh_update_lock.pop_front() {
+                None => return got_any_updates,
+                Some(handle) => {
+                    got_any_updates = true;
+                    //self.need_generation_update.try_lock().unwrap();
+                    let chunk = self.chunks.fetch_lock(handle).unwrap();
+                    let block_properties = &self.block_properties;
+                    let tp = &self.thread_pool;
+
+                    //self.thread_pool.install(|| {
+                        let mut wlock = chunk.write().unwrap();
+                        wlock.make_mesh(block_properties, tp);
+                        wlock.ready_to_display = true;
+                    //});
+                }
+            }
+        }
+    }
 
     pub fn generate_chunk(&mut self, x: f32, y: f32, z: f32) {
-        let mut new_chunk = Chunk::new(x, y, z);
+        let new_chunk = Chunk::new(x, y, z);
         let handle = self.chunks.create(new_chunk).unwrap();
         self.queue_chunk_update(handle);
     }
@@ -168,10 +190,10 @@ impl World {
         let mut indices = Vec::<u32>::new();
         let mut indices_offset = 0u32;
 
-        for handle in self.need_mesh_update.lock().unwrap().iter() {
-            println!("Updated {:?}", handle);
-            self.chunks.write_lock(*handle).unwrap().make_mesh(&self.block_properties, &self.thread_pool);
-        }
+        // for handle in self.need_mesh_update.lock().unwrap().iter() {
+        //     println!("Updated {:?}", handle);
+        //     self.chunks.write_lock(*handle).unwrap().make_mesh(&self.block_properties, &self.thread_pool);
+        // }
 
         for handle in self.chunks.iter() {
             let chunk = self.chunks.read_lock(handle).unwrap();

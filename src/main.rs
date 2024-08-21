@@ -250,16 +250,18 @@ impl ApplicationHandler for Game<'_> {
                         drop(player);
                         self.world.physics_step(self.clock.tick_time);
 
-                        self.world.check_for_chunk_updates();
-                        if !self.world.need_mesh_update.lock().unwrap().is_empty() {
+                        self.world.spawn_chunk_updates();
+                        
+                        if self.world.spawn_mesh_updates() {
                             let t = std::time::Instant::now();
                             //println!("Meshing...");
                             let (verts, indices) = self.world.get_all_chunk_meshes();
+                            //println!("{:?}, {:?}", verts, indices);
                             println!("{:?}", t.elapsed());
                             //println!("Pushing meshes to GPU...");
                             renderer.push_vertices_and_indices(verts, indices);
                             //println!("Done!");
-                            self.world.need_mesh_update.lock().unwrap().clear();
+                            //self.world.need_mesh_update.lock().unwrap().clear();
                             println!("{:?}", t.elapsed());
                         }
 
