@@ -12,7 +12,7 @@ use crate::memarena::{Arena, ArenaHandle};
 use crate::chunk::{Chunk, CHUNK_SIZE_F};
 
 const ENTITY_LIMIT: usize = 128;
-pub const RENDER_DISTANCE: usize = 10;
+pub const RENDER_DISTANCE: usize = 4;
 pub const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
 const LOAD_RADIUS: f32 = 12.0;
@@ -229,23 +229,31 @@ impl World {
 
     pub fn unload_chunks_outside_radius(&mut self) {
         let (px, py, pz) = self.get_player_chunk_coords();
-
+        println!("Player chunk coordinates: ({}, {}, {})", px, py, pz);
+    
         let mut chunks_to_unload = Vec::new();
-
+    
         for handle in self.chunks.iter() {
             let chunk = self.chunks.read_lock(handle).unwrap();
             let (cx, cy, cz) = chunk.get_coords();
-
+            println!("Checking chunk at: ({}, {}, {})", cx, cy, cz);
+    
             if (cx - px).abs() > LOAD_RADIUS as i32 ||
                (cy - py).abs() > LOAD_RADIUS as i32 ||
                (cz - pz).abs() > LOAD_RADIUS as i32 {
-                chunks_to_unload.push(handle);
+                println!("Marking chunk at ({}, {}, {}) for unloading", cx, cy, cz);
+                chunks_to_unload.push((handle, (cx, cy, cz)));
             }
         }
-
-        for handle in chunks_to_unload {
+    
+        for (handle, (cx, cy, cz)) in chunks_to_unload {
+            println!("Unloading chunk at: ({}, {}, {})", cx, cy, cz);
             self.unload_chunk(handle);
         }
+    }
+
+    fn unload_chunk(&mut self, handle: ArenaHandle<Chunk>) {
+        self.chunks.destroy(handle).unwrap();
     }
 
     fn is_chunk_loaded(&self, x: i32, y: i32, z: i32) -> bool {
@@ -253,10 +261,6 @@ impl World {
             let chunk = self.chunks.read_lock(handle).unwrap();
             chunk.get_coords() == (x, y, z)
         })
-    }
-
-    fn unload_chunk(&mut self, handle: ArenaHandle<Chunk>) {
-        self.chunks.destroy(handle).unwrap();
     }
 
     fn do_physics(&self, dt: f32, e: ArenaHandle<Entity>) {
