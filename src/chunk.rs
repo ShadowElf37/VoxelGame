@@ -5,6 +5,7 @@ use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
 use ndarray::{Ix3, Axis};
 use noise::NoiseFn;
+use glam::Vec3;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;
@@ -17,6 +18,7 @@ pub struct Chunk {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+    pub position: Vec3,
     ids_array: ChunkArray<BlockID>,
     visibility_array: ChunkArray<u8>,
     pub mesh: Vec<Vertex>,
@@ -31,6 +33,7 @@ impl<'a> Chunk {
         //stacker::maybe_grow(std::mem::size_of::<Self>(), std::mem::size_of::<Self>(), || {
         Self {
             x, y, z,
+            position: Vec3::new(x, y, z),
             ids_array: [0; CHUNK_VOLUME],
             visibility_array: [1; CHUNK_VOLUME],
             mesh: vec![],
@@ -40,6 +43,14 @@ impl<'a> Chunk {
             index_count: 0,
         }
         //})
+    }
+
+    pub fn get_coords(&self) -> (i32, i32, i32) {
+        (
+            (self.position.x / CHUNK_SIZE_F).floor() as i32,
+            (self.position.y / CHUNK_SIZE_F).floor() as i32,
+            (self.position.z / CHUNK_SIZE_F).floor() as i32,
+        )
     }
 
     pub fn check_inside_me(&self, x: f32, y: f32, z: f32) -> bool {

@@ -15,6 +15,8 @@ const ENTITY_LIMIT: usize = 128;
 pub const RENDER_DISTANCE: usize = 10;
 pub const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
+const LOAD_RADIUS: f32 = 12.0;
+
 pub struct World {
     pub chunks: Arena<Chunk>,
     pub entities: Arena<Entity>,
@@ -194,6 +196,67 @@ impl World {
                 });
             }
         }
+    }
+
+    fn get_player_chunk_coords(&self) -> (i32, i32, i32) {
+        let player_pos = self.entities.read_lock(self.player).unwrap().pos;
+        println!(
+            "Player chunk coords: ({}, {}, {})",
+            (player_pos.x / CHUNK_SIZE_F).floor() as i32,
+            (player_pos.y / CHUNK_SIZE_F).floor() as i32,
+            (player_pos.z / CHUNK_SIZE_F).floor() as i32
+        );
+        (
+            (player_pos.x / CHUNK_SIZE_F).floor() as i32,
+            (player_pos.y / CHUNK_SIZE_F).floor() as i32,
+            (player_pos.z / CHUNK_SIZE_F).floor() as i32,
+        )
+    }
+
+    pub fn load_chunks_around_player(&mut self) {
+        let (px, py, pz) = self.get_player_chunk_coords();
+
+        for x in (px - LOAD_RADIUS as i32)..=(px + LOAD_RADIUS as i32) {
+            for y in (py - LOAD_RADIUS as i32)..=(py + LOAD_RADIUS as i32) {
+                for z in (pz - LOAD_RADIUS as i32)..=(pz + LOAD_RADIUS as i32) {
+                    if !self.is_chunk_loaded(x, y, z) {
+                        self.generate_chunk(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn unload_chunks_outside_radius(&mut self) {
+        let (px, py, pz) = self.get_player_chunk_coords();
+
+        let mut chunks_to_unload = Vec::new();
+
+        for handle in self.chunks.iter() {
+            let chunk = self.chunks.read_lock(handle).unwrap();
+            let (cx, cy, cz) = chunk.get_coords();
+
+            if (cx - px).abs() > LOAD_RADIUS as i32 ||
+               (cy - py).abs() > LOAD_RADIUS as i32 ||
+               (cz - pz).abs() > LOAD_RADIUS as i32 {
+                chunks_to_unload.push(handle);
+            }
+        }
+
+        for handle in chunks_to_unload {
+            self.unload_chunk(handle);
+        }
+    }
+
+    fn is_chunk_loaded(&self, x: i32, y: i32, z: i32) -> bool {
+        self.chunks.iter().any(|handle| {
+            let chunk = self.chunks.read_lock(handle).unwrap();
+            chunk.get_coords() == (x, y, z)
+        })
+    }
+
+    fn unload_chunk(&mut self, handle: ArenaHandle<Chunk>) {
+        self.chunks.destroy(handle).unwrap();
     }
 
     fn do_physics(&self, dt: f32, e: ArenaHandle<Entity>) {

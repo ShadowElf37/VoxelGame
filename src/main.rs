@@ -63,6 +63,13 @@ impl Game<'_> {
         }
     }
 
+    pub fn update(&mut self, dt: f32) {
+        let player_pos = self.world.entities.read_lock(self.world.player).unwrap().pos;
+        self.world.load_chunks_around_player();
+        self.world.unload_chunks_outside_radius();
+        self.world.physics_step(dt);
+    }
+
     pub fn on_focus(&mut self) {
         let window = self.window.clone().unwrap();
         let renderer = self.renderer.as_ref().unwrap();
@@ -189,6 +196,7 @@ impl ApplicationHandler for Game<'_> {
                             _ => ()
                         }
                     }
+
                     WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Released, repeat:false, ..}, is_synthetic: false, ..} => {
                         let mut player = self.world.entities.write_lock(self.world.player).unwrap();
                         match physical_key {
@@ -207,12 +215,15 @@ impl ApplicationHandler for Game<'_> {
                         println!("User exited.");
                         event_loop.exit();
                     },
+
                     WindowEvent::Resized(physical_size) => {
                         renderer.resize(physical_size);
                     }
+
                     //WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
                     //    renderer.ui_scale = scale_factor as f32;
                     //}
+
                     WindowEvent::Focused(f) => {
                         if f {
                             self.on_focus();
@@ -220,14 +231,12 @@ impl ApplicationHandler for Game<'_> {
                             self.on_defocus();
                         }
                     }
-                    // ...
+                    
                     WindowEvent::RedrawRequested => {
                         let player = self.world.entities.read_lock(self.world.player).unwrap();
 
                         self.clock.tick();
 
-                        //let looking_at2 = player.get_last_air_looking_at(&self.world);
-                        //if self.clock.tick % 5 == 0 {
                         if true {
                             let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
                             let facing = player.facing_in_degrees();
@@ -251,12 +260,12 @@ impl ApplicationHandler for Game<'_> {
                         self.world.physics_step(self.clock.tick_time);
 
                         self.world.spawn_chunk_updates();
+
+                        self.world.spawn_chunk_updates();
                         
                         if self.world.spawn_mesh_updates() {
                             self.world.get_all_chunk_meshes(&renderer.device);
                         }
-                        //println!("through");
-
 
                         match renderer.render(&self.world) {
                             Ok(_) => {}
