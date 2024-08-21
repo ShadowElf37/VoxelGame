@@ -9,6 +9,7 @@ use winit::event::{WindowEvent, DeviceEvent, Event};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 use glam::{Vec3};
+use crate::chunk::CHUNK_SIZE_F;
 
 mod renderer;
 mod geometry;
@@ -240,16 +241,22 @@ impl ApplicationHandler for Game<'_> {
                         if true {
                             let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
                             let facing = player.facing_in_degrees();
+                            
+                            // Calculate chunk coordinates
+                            let chunk_x = (player.pos.x / CHUNK_SIZE_F).floor() as i32;
+                            let chunk_y = (player.pos.y / CHUNK_SIZE_F).floor() as i32;
+                            let chunk_z = (player.pos.z / CHUNK_SIZE_F).floor() as i32;
+                        
                             renderer.text_manager.set_text_on(
                                 0,
                                 format!(
-                                    "Frame={} Time={:.1} FPS={:.1}\nX=({:.2}, {:.2}, {:.2})\nV=({:.2}, {:.2}, {:.2})\nφ={:.0}° ϴ={:.0}°\nLooking: {} ({:.0}, {:.0}, {:.0})\nW={} H={}\nPAUSED = {}",
+                                    "Frame={} Time={:.1} FPS={:.1}\nX=({:.2}, {:.2}, {:.2})\nV=({:.2}, {:.2}, {:.2})\nφ={:.0}° ϴ={:.0}°\nLooking: {} ({:.0}, {:.0}, {:.0})\nChunk: ({}, {}, {})\nW={} H={}\nPAUSED = {}",
                                     self.clock.tick, self.clock.time, self.clock.tps,
                                     player.pos.x, player.pos.y, player.pos.z,
                                     player.vel.x, player.vel.y, player.vel.z,
                                     facing.x, facing.y,
                                     self.world.block_properties.by_id(looking_at_id).name, looking_at_pos.x, looking_at_pos.y, looking_at_pos.z,
-                                    //last_air_pos.x, last_air_pos.y, last_air_pos.z,
+                                    chunk_x, chunk_y, chunk_z, // Add chunk coordinates here
                                     renderer.size.width, renderer.size.height,
                                     self.game_state.paused
                                 ).as_str()
@@ -258,8 +265,6 @@ impl ApplicationHandler for Game<'_> {
 
                         drop(player);
                         self.world.physics_step(self.clock.tick_time);
-
-                        self.world.spawn_chunk_updates();
 
                         self.world.spawn_chunk_updates();
                         
