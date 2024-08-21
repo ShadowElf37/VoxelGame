@@ -169,28 +169,23 @@ mod tessellate {
 
             found_new_square_anchor = false;
             // find the next unchurched block
-            for (y, row) in slice.axis_iter(Axis(1)).enumerate() {
+            'square_finder_y: for (y, row) in slice.axis_iter(Axis(1)).enumerate() {
                 if y < y1 { continue; } // we're below the last known square so it can't be unchurched - skip
 
-                for (x, v) in row.iter().enumerate() {
+                'square_finder_x: for (x, v) in row.iter().enumerate() {
                     if *v != 0 {
                         found_new_square_anchor = true;
                         // if we are in a square, get out of here and start over with the next block
                         for square in &squares {
                             if in_square(x, y, square) {
                                 found_new_square_anchor = false;
-                                break;
+                                continue 'square_finder_x;
                             }
                         }
 
-                        if found_new_square_anchor {
-                            (x1, y1, x2, y2) = (x, y, x, y);
-                            break;
-                        }
+                        (x1, y1, x2, y2) = (x, y, x, y);
+                        break 'square_finder_y;
                     }
-                }
-                if found_new_square_anchor {
-                    break;
                 }
             }
 
