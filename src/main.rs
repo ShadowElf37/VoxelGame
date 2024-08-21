@@ -70,10 +70,11 @@ impl Game<'_> {
         if !self.game_state.paused {
             self.hold_cursor = true;
             window.set_cursor_visible(false);
-            window.set_cursor_position(renderer.window_center_px).unwrap();
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
             window.set_cursor_grab(winit::window::CursorGrabMode::Locked);
+
+            window.set_cursor_position(renderer.window_center_px).unwrap();
         }
     }
     pub fn on_defocus(&mut self) {
@@ -81,7 +82,7 @@ impl Game<'_> {
         self.hold_cursor = false;
         window.set_cursor_visible(true);
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
         window.set_cursor_grab(winit::window::CursorGrabMode::None);
     }
 }
