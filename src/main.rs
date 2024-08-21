@@ -64,8 +64,15 @@ impl Game<'_> {
         }
     }
 
+    // MARK: UPDATE
     pub fn update(&mut self, dt: f32) {
-        let player_pos = self.world.entities.read_lock(self.world.player).unwrap().pos;
+        // Extract player position before any mutable borrow
+        let player_pos = {
+            let player_entity = self.world.entities.read_lock(self.world.player).unwrap();
+            player_entity.pos
+        };
+    
+        // These methods require mutable access to the player entity
         self.world.load_chunks_around_player();
         self.world.unload_chunks_outside_radius();
         self.world.physics_step(dt);
@@ -236,9 +243,9 @@ impl ApplicationHandler for Game<'_> {
                     
                     WindowEvent::RedrawRequested => {
                         let player = self.world.entities.read_lock(self.world.player).unwrap();
-
+                    
                         self.clock.tick();
-
+                    
                         if true {
                             let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
                             let facing = player.facing_in_degrees();
@@ -263,26 +270,39 @@ impl ApplicationHandler for Game<'_> {
                                 ).as_str()
                             );
                         }
-
-                        drop(player);
-                        self.world.physics_step(self.clock.tick_time);
-
+                    
+                        drop(player); // Drop the player borrow here
+                    
+                        // Store tick_time in a local variable
+                        let tick_time = self.clock.tick_time;
+                    
+                        // MARK:
+                        // Call update with the local tick_time variable
+                        self.update(tick_time);
+                    
+                        // Spawn chunk updates
                         self.world.spawn_chunk_updates();
                         
+                        // Spawn mesh updates and get all chunk meshes if necessary
                         if self.world.spawn_mesh_updates() {
                             self.world.get_all_chunk_meshes(&renderer.device);
                         }
-
+                    
+                        // Get the window size
+                        let size = window.inner_size();
+                    
+                        // Render the world
                         match renderer.render(&self.world) {
                             Ok(_) => {}
                             // Reconfigure the surface if lost
                             Err(wgpu::SurfaceError::Lost) => {
-                                let size = renderer.size;
                                 renderer.resize(size);
                             },
                             // All other errors (Outdated, Timeout) should be resolved by the next frame
                             Err(e) => eprintln!("{:?}", e),
                         }
+                    
+                        // Request a redraw
                         window.request_redraw();
                     }
                     _ => (),
