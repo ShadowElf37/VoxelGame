@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::ops::DerefMut;
 use winit::{
     application::ApplicationHandler,
     event::{DeviceEvent, DeviceId, ElementState, KeyEvent, WindowEvent},
@@ -6,7 +7,6 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
-use std::ops::{Deref, DerefMut};
 
 mod renderer;
 mod geometry;
