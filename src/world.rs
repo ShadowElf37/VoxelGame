@@ -12,10 +12,10 @@ use crate::memarena::{Arena, ArenaHandle};
 use crate::chunk::{Chunk, CHUNK_SIZE_F};
 
 const ENTITY_LIMIT: usize = 128;
-pub const RENDER_DISTANCE: usize = 4;
+pub const RENDER_DISTANCE: usize = 10;
 pub const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
-const LOAD_RADIUS: f32 = 12.0;
+const LOAD_RADIUS: f32 = 2.0;
 
 pub struct World {
     pub chunks: Arena<Chunk>,
@@ -26,6 +26,7 @@ pub struct World {
     pub spawn_point: Vec3,
     pub sky_color: [f32; 4],
     pub player: ArenaHandle<Entity>,
+    last_player_chunk_coords: Option<[i32; 3]>,
 
     pub need_mesh_update: Mutex<VecDeque<ArenaHandle<Chunk>>>,
     pub need_generation_update: Mutex<VecDeque<ArenaHandle<Chunk>>>,
@@ -40,7 +41,7 @@ impl World {
         println!("Created threadpool with {} threads", thread_pool.current_num_threads());
         return Self {
             // render distance changing is easy. `chunks = Arena::from_iter(chunks.iter())`. then, ensure Arena::drop() works.
-            chunks: Arena::<Chunk>::new(RENDER_VOLUME),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
+            chunks: Arena::<Chunk>::new(2*RENDER_VOLUME),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
             entities,
 
             block_properties: block::BlockProtoSet::from_toml("config/blocks.toml"),
@@ -48,6 +49,7 @@ impl World {
             spawn_point: Vec3::new(0.0, 0.0, 0.0),
             player,
             sky_color: [155./255., 230./255., 255./255., 1.0],
+            last_player_chunk_coords: None,
 
             need_mesh_update: Mutex::new(VecDeque::new()),
             need_generation_update: Mutex::new(VecDeque::new()),
@@ -200,12 +202,6 @@ impl World {
 
     fn get_player_chunk_coords(&self) -> (i32, i32, i32) {
         let player_pos = self.entities.read_lock(self.player).unwrap().pos;
-        println!(
-            "Player chunk coords: ({}, {}, {})",
-            (player_pos.x / CHUNK_SIZE_F).floor() as i32,
-            (player_pos.y / CHUNK_SIZE_F).floor() as i32,
-            (player_pos.z / CHUNK_SIZE_F).floor() as i32
-        );
         (
             (player_pos.x / CHUNK_SIZE_F).floor() as i32,
             (player_pos.y / CHUNK_SIZE_F).floor() as i32,
@@ -213,12 +209,39 @@ impl World {
         )
     }
 
-    pub fn load_chunks_around_player(&mut self) {
+    pub fn update_loaded_chunks(&mut self) {
+
         let (px, py, pz) = self.get_player_chunk_coords();
 
-        for x in (px - LOAD_RADIUS as i32)..=(px + LOAD_RADIUS as i32) {
-            for y in (py - LOAD_RADIUS as i32)..=(py + LOAD_RADIUS as i32) {
-                for z in (pz - LOAD_RADIUS as i32)..=(pz + LOAD_RADIUS as i32) {
+        if self.last_player_chunk_coords.is_some() && [px, py, pz] == self.last_player_chunk_coords.unwrap() {
+            return
+        }
+        self.last_player_chunk_coords = Some([px, py, pz]);
+    
+        // UNLOAD CHUNKS OUTSIDE RENDER DISTANCE
+        let mut chunks_to_unload = Vec::new();
+    
+        for handle in self.chunks.iter() {
+            let chunk = self.chunks.read_lock(handle).unwrap();
+            let (cx, cy, cz) = chunk.integer_chunk_coords();
+    
+            if (cx - px).abs() > RENDER_DISTANCE as i32 ||
+               (cy - py).abs() > RENDER_DISTANCE as i32 ||
+               (cz - pz).abs() > RENDER_DISTANCE as i32 {
+                //println!("Marking chunk at ({}, {}, {}) for unloading", cx, cy, cz);
+                //println!("Player chunk coordinates: ({}, {}, {})", px, py, pz);
+                chunks_to_unload.push(handle);
+            }
+        }
+    
+        for handle in chunks_to_unload {
+            self.chunks.destroy(handle).unwrap();
+        }
+
+        // GENERATE ANY CHUNKS THAT HAVEN'T BEEN LOADED YET
+        for x in (px - RENDER_DISTANCE as i32)..(px + RENDER_DISTANCE as i32) {
+            for y in (py - RENDER_DISTANCE as i32)..(py + RENDER_DISTANCE as i32) {
+                for z in (pz - RENDER_DISTANCE as i32)..(pz + RENDER_DISTANCE as i32) {
                     if !self.is_chunk_loaded(x, y, z) {
                         self.generate_chunk(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
                     }
@@ -227,39 +250,10 @@ impl World {
         }
     }
 
-    pub fn unload_chunks_outside_radius(&mut self) {
-        let (px, py, pz) = self.get_player_chunk_coords();
-        println!("Player chunk coordinates: ({}, {}, {})", px, py, pz);
-    
-        let mut chunks_to_unload = Vec::new();
-    
-        for handle in self.chunks.iter() {
-            let chunk = self.chunks.read_lock(handle).unwrap();
-            let (cx, cy, cz) = chunk.get_coords();
-            println!("Checking chunk at: ({}, {}, {})", cx, cy, cz);
-    
-            if (cx - px).abs() > LOAD_RADIUS as i32 ||
-               (cy - py).abs() > LOAD_RADIUS as i32 ||
-               (cz - pz).abs() > LOAD_RADIUS as i32 {
-                println!("Marking chunk at ({}, {}, {}) for unloading", cx, cy, cz);
-                chunks_to_unload.push((handle, (cx, cy, cz)));
-            }
-        }
-    
-        for (handle, (cx, cy, cz)) in chunks_to_unload {
-            println!("Unloading chunk at: ({}, {}, {})", cx, cy, cz);
-            self.unload_chunk(handle);
-        }
-    }
-
-    fn unload_chunk(&mut self, handle: ArenaHandle<Chunk>) {
-        self.chunks.destroy(handle).unwrap();
-    }
-
     fn is_chunk_loaded(&self, x: i32, y: i32, z: i32) -> bool {
         self.chunks.iter().any(|handle| {
             let chunk = self.chunks.read_lock(handle).unwrap();
-            chunk.get_coords() == (x, y, z)
+            chunk.integer_chunk_coords() == (x, y, z)
         })
     }
 

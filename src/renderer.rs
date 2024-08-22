@@ -548,7 +548,7 @@ impl<'a> Renderer<'a> {
 
                 // DO FRUSTUM CULLING
                 let chunk = world.chunks.read_lock(handle).unwrap();
-                if (Vec3::new(chunk.x, chunk.y, chunk.z) - pos).dot(facing) < -23.0 {
+                if (Vec3::new(chunk.pos.x, chunk.pos.y, chunk.pos.z) - pos).dot(facing) < -23.0 {
                     //println!("skipped {} {} {}", chunk.x, chunk.y, chunk.z);
                     continue;
                 }
