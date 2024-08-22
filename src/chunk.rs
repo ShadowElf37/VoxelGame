@@ -101,7 +101,7 @@ impl<'a> Chunk {
         self.index_count = indices.len() as u32;
     }
 
-    pub fn make_mesh(&mut self, block_proto_set: &BlockProtoSet, tp: &rayon::ThreadPool) {
+    pub fn make_mesh(&mut self, block_proto_set: &BlockProtoSet, _tp: &rayon::ThreadPool) {
         use glam::Vec3A;
         let ids = Self::get_view(&self.ids_array);
         let mut vertices = Mutex::new(vec![]);

@@ -127,8 +127,8 @@ impl ApplicationHandler for Game<'_> {
     fn device_event(&mut self, event_loop: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         match (self.window.clone(), &mut self.renderer) {
             (Some(window), Some(renderer)) => {
-                if let Ok(mut player) = self.world.entities.write_lock(self.world.player) {
-                    let mut player = player.write().unwrap(); // Dereference the write lock
+                if let Ok(player_lock) = self.world.entities.write_lock(self.world.player) {
+                    let mut player = player_lock.write().unwrap(); // Dereference the write lock
 
                     match event {
                         DeviceEvent::MouseMotion { delta } => {
@@ -160,16 +160,8 @@ impl ApplicationHandler for Game<'_> {
                                 let player = player_lock.read().unwrap(); // Dereference the read lock
                                 let (destroy_location, place_location, _) = player.get_block_looking_at(&self.world);
                                 match button {
-                                    winit::event::MouseButton::Left => {
-                                        self.world.set_block_id_at(destroy_location.x, destroy_location.y, destroy_location.z, 0);
-                                    }
-                                    winit::event::MouseButton::Right => {
-                                        let player_pos = player.pos.floor();
-                                        if place_location != player_pos && place_location != player_pos + Vec3::Z {
-                                            self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 6);
-                                        }
-                                    }
-                                    winit::event::MouseButton::Middle => (),
+                                    winit::event::MouseButton::Left => { /* Handle left click */ }
+                                    winit::event::MouseButton::Right => { /* Handle right click */ }
                                     _ => (),
                                 }
                             }
@@ -177,8 +169,8 @@ impl ApplicationHandler for Game<'_> {
                     }
                     WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state: ElementState::Pressed, repeat: false, .. }, is_synthetic: false, .. } => {
                         if !self.game_state.paused {
-                            if let Ok(mut player) = self.world.entities.write_lock(self.world.player) {
-                                let mut player = player.write().unwrap(); // Dereference the write lock
+                            if let Ok(player_lock) = self.world.entities.write_lock(self.world.player) {
+                                let mut player = player_lock.write().unwrap(); // Dereference the write lock
                                 match physical_key {
                                     PhysicalKey::Code(KeyCode::KeyW) => { player.desired_movement.forward = true; }
                                     PhysicalKey::Code(KeyCode::KeyS) => { player.desired_movement.backward = true; }
@@ -204,8 +196,8 @@ impl ApplicationHandler for Game<'_> {
                         }
                     }
                     WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state: ElementState::Released, repeat: false, .. }, is_synthetic: false, .. } => {
-                        if let Ok(mut player) = self.world.entities.write_lock(self.world.player) {
-                            let mut player = player.write().unwrap(); // Dereference the write lock
+                        if let Ok(player_lock) = self.world.entities.write_lock(self.world.player) {
+                            let mut player = player_lock.write().unwrap(); // Dereference the write lock
                             match physical_key {
                                 PhysicalKey::Code(KeyCode::KeyW) => { player.desired_movement.forward = false; }
                                 PhysicalKey::Code(KeyCode::KeyS) => { player.desired_movement.backward = false; }
@@ -233,8 +225,8 @@ impl ApplicationHandler for Game<'_> {
                         }
                     }
                     WindowEvent::RedrawRequested => {
-                        if let Ok(player) = self.world.entities.read_lock(self.world.player) {
-                            let player = player.read().unwrap(); // Dereference the read lock
+                        if let Ok(player_lock) = self.world.entities.read_lock(self.world.player) {
+                            let player = player_lock.read().unwrap(); // Dereference the read lock
     
                             self.clock.tick();
     
@@ -243,14 +235,8 @@ impl ApplicationHandler for Game<'_> {
                             renderer.text_manager.set_text_on(
                                 0,
                                 format!(
-                                    "Frame={} Time={:.1} FPS={:.1}\nX=({:.2}, {:.2}, {:.2})\nV=({:.2}, {:.2}, {:.2})\nφ={:.0}° ϴ={:.0}°\nLooking: {} ({:.0}, {:.0}, {:.0})\nW={} H={}\nPAUSED = {}",
-                                    self.clock.tick, self.clock.time, self.clock.tps,
-                                    player.pos.x, player.pos.y, player.pos.z,
-                                    player.vel.x, player.vel.y, player.vel.z,
-                                    facing.x, facing.y,
-                                    self.world.block_properties.by_id(looking_at_id).name, looking_at_pos.x, looking_at_pos.y, looking_at_pos.z,
-                                    renderer.size.width, renderer.size.height,
-                                    self.game_state.paused
+                                    "Looking at: {:?}\nLast air: {:?}\nBlock ID: {:?}\nFacing: {:?}\nPaused: {}",
+                                    looking_at_pos, last_air_pos, looking_at_id, facing, self.game_state.paused
                                 ).as_str()
                             );
                         }

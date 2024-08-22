@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
-use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
-use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::alloc::{dealloc, Layout, handle_alloc_error, alloc_zeroed};
+use std::sync::{Arc, RwLock};
 use std::mem::{size_of, align_of};
 
 #[derive(Debug)]
