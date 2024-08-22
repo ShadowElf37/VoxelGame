@@ -158,11 +158,11 @@ impl World {
                     let block_properties = &self.block_properties;
                     let tp = &self.thread_pool;
 
-                    //self.thread_pool.install(|| {
+                    self.thread_pool.install(|| {
                         let mut wlock = chunk.write().unwrap();
                         wlock.make_mesh(block_properties, tp);
                         wlock.ready_to_display = true;
-                    //});
+                    });
                 }
             }
         }
@@ -185,30 +185,15 @@ impl World {
         }
     }
     
-    pub fn get_all_chunk_meshes(&mut self, device: &impl wgpu::util::DeviceExt) {
-        // let mut vertices = Vec::<geometry::Vertex>::new();
-        // let mut indices = Vec::<u32>::new();
-        // let mut indices_offsets = Vec::<u32>::new();
-        // let mut index_offset = 0u32;
-
-        // for handle in self.need_mesh_update.lock().unwrap().iter() {
-        //     println!("Updated {:?}", handle);
-        //     self.chunks.write_lock(*handle).unwrap().make_mesh(&self.block_properties, &self.thread_pool);
-        // }
-
+    pub fn get_all_chunk_meshes(&mut self, device: &wgpu::Device) {
         for handle in self.chunks.iter() {
-            let mut chunk = self.chunks.write_lock(handle).unwrap();
-            if chunk.vertex_buffer.is_none() {
-                chunk.make_vertex_buffer(device);
+            let chunk = self.chunks.fetch_lock(handle).unwrap();
+            if chunk.read().unwrap().vertex_buffer.is_none() {
+                self.thread_pool.install(||{
+                    chunk.write().unwrap().make_vertex_buffer(device);
+                });
             }
-            //let v = &chunk.mesh;
-            //vertices.extend(v);
-            //indices.extend(chunk.get_indices(index_offset));
-            //index_offset += chunk.mesh.len() as u32;
-            //indices_offsets.push(index_offset);
         }
-
-        //(indices, indices_offsets)
     }
 
     fn do_physics(&self, dt: f32, e: ArenaHandle<Entity>) {
