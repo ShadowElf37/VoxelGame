@@ -355,10 +355,22 @@ impl<'a> Renderer<'a> {
     }
 
     pub fn load_texture_set(&mut self, fp_vec: Vec<String>) {
-        println!("Loading texture set...");
-        let device = self.device.read().unwrap();
-        let queue = self.queue.read().unwrap();
-        self.texture_sets.push(texturing::TextureSet::from_fp_vec(&device, &queue, &self.texture_bind_group_layout, fp_vec))
+        if fp_vec.is_empty() {
+            panic!("The file path vector is empty. Please provide at least one texture file path.");
+        }
+        println!("Loading texture set with file paths: {:?}", fp_vec);
+    
+        let device = match self.device.read() {
+            Ok(device) => device,
+            Err(_) => panic!("Failed to acquire read lock on device."),
+        };
+    
+        let queue = match self.queue.read() {
+            Ok(queue) => queue,
+            Err(_) => panic!("Failed to acquire read lock on queue."),
+        };
+    
+        self.texture_sets.push(texturing::TextureSet::from_fp_vec(&device, &queue, &self.texture_bind_group_layout, fp_vec));
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
