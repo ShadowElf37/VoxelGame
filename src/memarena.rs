@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::mem::{size_of, align_of};
 
 #[derive(Debug)]
@@ -32,31 +32,21 @@ impl<T> Clone for ArenaHandle<T> {
 }
 unsafe impl<T> Send for ArenaHandle<T> {}
 unsafe impl<T> Sync for ArenaHandle<T> {}
-// impl<T> std::fmt::Debug for ArenaHandle<T> where T: std::fmt::Debug {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct(format!("ArenaHandle<{}>", T::fmt(T, f))).finish()
-//     }
-// }
-
 
 pub struct Arena<T> {
-    memory: *mut RwLock<T>,
+    items: Vec<Option<Arc<RwLock<T>>>>,
     allocated: *mut bool,
     pub length: usize,
     pub last_known_free: usize,
     pub count: usize,
  
-    layout_memory: Layout,
     layout_allocated: Layout,
 }
-
 
 impl<T> std::fmt::Debug for Arena<T> where T: std::fmt::Debug {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list().entries(
-            unsafe {
-                (0..self.length).map(|i| if *self.allocated.add(i) {Some(&*self.memory.add(i))} else { None })
-            }
+            self.items.iter().map(|item| item.as_ref())
         ).finish()
     }
 }
@@ -64,43 +54,32 @@ impl<T> std::fmt::Debug for Arena<T> where T: std::fmt::Debug {
 impl<T> Drop for Arena<T> {
     fn drop(&mut self) {
         unsafe {
-            for i in 0..self.length {
-                std::ptr::drop_in_place(self.memory.add(i));
-            }
-            dealloc(self.memory as *mut u8, self.layout_memory);
             dealloc(self.allocated as *mut u8, self.layout_allocated);
         }
     }
 }
 
 impl<T> Arena<T> {
-    //type MyArenaHandle =  ArenaHandle<T>;
     // length in number of T it can hold
     pub fn new(length: usize) -> Self {
-        let layout_memory = Layout::from_size_align(size_of::<RwLock<T>>()*length, align_of::<RwLock<T>>()).unwrap();
         let layout_allocated = Layout::from_size_align(size_of::<bool>()*length, align_of::<bool>()).unwrap();
 
-        println!("Arena allocation: {:?} bytes, {:?} entities", layout_memory.size(), layout_allocated.size());
+        println!("Arena allocation: {:?} entities", layout_allocated.size());
 
         unsafe {
-            let ptr_memory = alloc(layout_memory);
             let ptr_allocated = alloc_zeroed(layout_allocated);
 
-            if ptr_memory.is_null() {
-                handle_alloc_error(layout_memory);
-            }
             if ptr_allocated.is_null() {
                 handle_alloc_error(layout_allocated);
             }
 
             Arena {
-                memory: ptr_memory as *mut RwLock<T>,
+                items: vec![None; length],
                 allocated: ptr_allocated as *mut bool,
                 length,
                 last_known_free: 0,
                 count: 0,
 
-                layout_memory,
                 layout_allocated,
             }
         }
@@ -124,7 +103,7 @@ impl<T> Arena<T> {
             if i == length {
                 panic!("Arena::from_iter is about to segfault because you didn't specify a high enough length")
             }
-            unsafe {arena.overwrite(i, item);}
+            unsafe {arena.overwrite(i, Arc::new(RwLock::new(item)));}
             arena.count += 1;
         }
         arena
@@ -135,8 +114,8 @@ impl<T> Arena<T> {
     }
 
     // writes an object to an index regardless of allocation status. does no bounds checking. use with care.
-    unsafe fn overwrite(&mut self, index: usize, obj: T) {
-        self.memory.add(index).write(RwLock::new(obj));
+    unsafe fn overwrite(&mut self, index: usize, obj: Arc<RwLock<T>>) {
+        self.items[index] = Some(obj);
         self.allocated.add(index).write(true);
     }
 
@@ -147,7 +126,7 @@ impl<T> Arena<T> {
 
             // we found one that was free!
             unsafe {
-                self.memory.add(i).write(RwLock::new(obj));
+                self.items[i] = Some(Arc::new(RwLock::new(obj)));
                 self.allocated.add(i).write(true);
             }
 
@@ -167,44 +146,35 @@ impl<T> Arena<T> {
             if !self.allocated.add(handle.index).read() {
                 return Err(ArenaError::DoesNotExist);
             }
-            self.memory.add(handle.index).drop_in_place();
+            self.items[handle.index] = None;
             self.allocated.add(handle.index).write(false);
         }
         self.last_known_free = handle.index;
         self.count -= 1;
 
-        // Logging statement to indicate chunk destruction
-        // println!("Destroying chunk at index {}", handle.index);
-
         Ok(())
     }
 
-    // get the object at a certain index, wrapped in a RwLock
-    pub fn fetch_lock(&self, handle: ArenaHandle<T>) -> Result<&RwLock<T>, ArenaError> {
-        unsafe {Ok(&*self.memory.add(handle.index))}
-    }
-
-    pub fn read_lock(&self, handle: ArenaHandle<T>) -> Result<RwLockReadGuard<T>, ArenaError> {
-        match self.fetch_lock(handle)?.read() {
-            Ok(readable) => Ok(readable),
-            Err(_) => Err(ArenaError::PoisonedLock)
+    // get the object at a certain index, wrapped in a Arc<RwLock>
+    pub fn fetch_lock(&self, handle: ArenaHandle<T>) -> Result<Arc<RwLock<T>>, ArenaError> {
+        match &self.items[handle.index] {
+            Some(arc_rwlock) => Ok(arc_rwlock.clone()),
+            None => Err(ArenaError::DoesNotExist),
         }
     }
-    pub fn write_lock(&self, handle: ArenaHandle<T>) -> Result<RwLockWriteGuard<T>, ArenaError> {
-        match self.fetch_lock(handle)?.write() {
-            Ok(writable) => Ok(writable),
+
+    pub fn read_lock(&self, handle: ArenaHandle<T>) -> Result<Arc<RwLock<T>>, ArenaError> {
+        match self.fetch_lock(handle) {
+            Ok(arc_rwlock) => Ok(arc_rwlock),
             Err(_) => Err(ArenaError::PoisonedLock)
         }
     }
 
-    /*pub fn get_mut(&self, index: usize) -> Result<&mut T, &str> {
-        self.check_allocated(index)?;
-        unsafe {
-            Ok(&mut *self.memory.add(index))
-        }
-    }*/
+    pub fn write_lock(&self, handle: ArenaHandle<T>) -> Result<Arc<RwLock<T>>, ArenaError> {
+        let arc_rwlock = self.fetch_lock(handle)?;
+        Ok(arc_rwlock)
+    }
 }
-
 
 pub struct ArenaIterator<'a, T> {
     i: usize,
@@ -213,7 +183,6 @@ pub struct ArenaIterator<'a, T> {
 impl<'a, T> Iterator for ArenaIterator<'a, T> {
     type Item = ArenaHandle<T>;
     fn next(&mut self) -> std::option::Option<Self::Item> {
-        
         if self.i < self.arena.length {
             match self.arena.new_handle(self.i) {
                 Ok(handle) => {self.i += 1; return Some(handle)}
@@ -222,11 +191,8 @@ impl<'a, T> Iterator for ArenaIterator<'a, T> {
         } else {
             return None;
         }
-        
     }
 }
-
-
 
 /*
 #[derive(Debug)]

@@ -40,8 +40,6 @@ struct Game<'a> {
 
 impl Game<'_> {
     pub async fn new(event_loop: &EventLoop<()>) -> Self {
-        //let window = Arc::new(event_loop.create_window(Window::default_attributes()).unwrap());
-
         let world = world::World::new();
 
         Game {
@@ -54,7 +52,7 @@ impl Game<'_> {
             renderer: None,
 
             hold_cursor: true,
-            cursor_moved_by:  (0.0, 0.0), // for macos use only
+            cursor_moved_by: (0.0, 0.0), // for macos use only
 
             world,
             clock: clock::Clock::new(),
@@ -82,9 +80,10 @@ impl Game<'_> {
                 Err(e) => {
                     eprintln!("Failed to set cursor grab mode: {:?}", e);
                 }
-            }          
+            }
         }
     }
+
     pub fn on_defocus(&mut self) {
         let window = self.window.clone().unwrap();
         self.hold_cursor = false;
@@ -116,7 +115,7 @@ impl ApplicationHandler for Game<'_> {
         println!("Initializing renderer... ({:.2?})", t.elapsed());
         let mut renderer = pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap()));
         renderer.load_texture_set(self.world.block_properties.collect_textures());
-        
+
         println!("Generating chunks... ({:.2?})", t.elapsed());
         self.world.generate_all_chunks_around_player();
 
@@ -128,107 +127,104 @@ impl ApplicationHandler for Game<'_> {
     fn device_event(&mut self, event_loop: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         match (self.window.clone(), &mut self.renderer) {
             (Some(window), Some(renderer)) => {
-                let mut player = self.world.entities.write_lock(self.world.player).unwrap();
+                if let Ok(mut player) = self.world.entities.write_lock(self.world.player) {
+                    let mut player = player.write().unwrap(); // Dereference the write lock
 
-                match event {
-                    DeviceEvent::MouseMotion {delta} => {
-                        if self.game_state.in_game && !self.game_state.paused {
-                            player.turn_horizontal(renderer.camera.look_sensitivity * delta.0 as f32);
-                            player.turn_vertical(renderer.camera.look_sensitivity * delta.1 as f32);
-                        }
-                        if !cfg!(target_os = "macos") {
-                            
-                            if self.hold_cursor {
-                                window.set_cursor_position(renderer.window_center_px).unwrap();
+                    match event {
+                        DeviceEvent::MouseMotion { delta } => {
+                            if self.game_state.in_game && !self.game_state.paused {
+                                player.turn_horizontal(renderer.camera.look_sensitivity * delta.0 as f32);
+                                player.turn_vertical(renderer.camera.look_sensitivity * delta.1 as f32);
+                            }
+                            if !cfg!(target_os = "macos") {
+                                if self.hold_cursor {
+                                    window.set_cursor_position(renderer.window_center_px).unwrap();
+                                }
                             }
                         }
-                        //println!("Mouse moved: {:?} {} {} {}", delta, self.game_state.in_game, self.game_state.paused, self.hold_cursor);
-                    },
-                    _ => ()
+                        _ => (),
+                    }
                 }
             }
-            _ => ()
+            _ => (),
         }
-
-        
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match (self.window.clone(), &mut self.renderer) {
             (Some(window), Some(renderer)) => {
-
                 match event {
-                    //WindowEvent::CursorMoved { position, .. } => { }
-
                     WindowEvent::MouseInput { state: ElementState::Pressed, button, .. } => {
                         if !self.game_state.paused {
-                            let (destroy_location, place_location, _) = self.world.entities.read_lock(self.world.player).unwrap().get_block_looking_at(&self.world);
-                            match button {
-                                winit::event::MouseButton::Left => {
-                                    self.world.set_block_id_at(destroy_location.x, destroy_location.y, destroy_location.z, 0);
-                                },
-                                winit::event::MouseButton::Right => {
-                                    let player_pos = self.world.entities.read_lock(self.world.player).unwrap().pos.floor();
-                                    if place_location != player_pos && place_location != player_pos + Vec3::Z{
-                                        self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 6);
+                            if let Ok(player_lock) = self.world.entities.read_lock(self.world.player) {
+                                let player = player_lock.read().unwrap(); // Dereference the read lock
+                                let (destroy_location, place_location, _) = player.get_block_looking_at(&self.world);
+                                match button {
+                                    winit::event::MouseButton::Left => {
+                                        self.world.set_block_id_at(destroy_location.x, destroy_location.y, destroy_location.z, 0);
                                     }
-                                },
-                                winit::event::MouseButton::Middle => (),
-                                _ => ()
+                                    winit::event::MouseButton::Right => {
+                                        let player_pos = player.pos.floor();
+                                        if place_location != player_pos && place_location != player_pos + Vec3::Z {
+                                            self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 6);
+                                        }
+                                    }
+                                    winit::event::MouseButton::Middle => (),
+                                    _ => (),
+                                }
                             }
                         }
                     }
-
-                    WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Pressed, repeat:false, ..}, is_synthetic: false, ..} => {
+                    WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state: ElementState::Pressed, repeat: false, .. }, is_synthetic: false, .. } => {
                         if !self.game_state.paused {
-                            let mut player = self.world.entities.write_lock(self.world.player).unwrap();
-                            match physical_key {
-                                PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.forward = true;}
-                                PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.backward = true;}
-                                PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.right = true;}
-                                PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.left = true;}
-                                PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.up = true;}
-                                PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.down = true;}
-                                PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.sprint = true;}
-                                _ => ()
+                            if let Ok(mut player) = self.world.entities.write_lock(self.world.player) {
+                                let mut player = player.write().unwrap(); // Dereference the write lock
+                                match physical_key {
+                                    PhysicalKey::Code(KeyCode::KeyW) => { player.desired_movement.forward = true; }
+                                    PhysicalKey::Code(KeyCode::KeyS) => { player.desired_movement.backward = true; }
+                                    PhysicalKey::Code(KeyCode::KeyD) => { player.desired_movement.right = true; }
+                                    PhysicalKey::Code(KeyCode::KeyA) => { player.desired_movement.left = true; }
+                                    PhysicalKey::Code(KeyCode::Space) => { player.desired_movement.up = true; }
+                                    PhysicalKey::Code(KeyCode::ShiftLeft) => { player.desired_movement.down = true; }
+                                    PhysicalKey::Code(KeyCode::KeyR) => { player.desired_movement.sprint = true; }
+                                    _ => (),
+                                }
                             }
                         }
                         match physical_key {
                             PhysicalKey::Code(KeyCode::Escape) => {
-                                self.game_state.paused = !self.game_state.paused;  
-                                if !self.game_state.paused { // inverse because we unpaused on the line above. necessary because on_focus queries pause state
+                                self.game_state.paused = !self.game_state.paused;
+                                if !self.game_state.paused {
                                     self.on_focus();
                                 } else {
                                     self.on_defocus();
                                 }
                             }
-                            _ => ()
+                            _ => (),
                         }
                     }
-                    WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Released, repeat:false, ..}, is_synthetic: false, ..} => {
-                        let mut player = self.world.entities.write_lock(self.world.player).unwrap();
-                        match physical_key {
-                            PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.forward = false;}
-                            PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.backward = false;}
-                            PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.right = false;}
-                            PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.left = false;}
-                            PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.up = false;}
-                            PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.down = false;}
-                            PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.sprint = false;}
-                            _ => ()
+                    WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state: ElementState::Released, repeat: false, .. }, is_synthetic: false, .. } => {
+                        if let Ok(mut player) = self.world.entities.write_lock(self.world.player) {
+                            let mut player = player.write().unwrap(); // Dereference the write lock
+                            match physical_key {
+                                PhysicalKey::Code(KeyCode::KeyW) => { player.desired_movement.forward = false; }
+                                PhysicalKey::Code(KeyCode::KeyS) => { player.desired_movement.backward = false; }
+                                PhysicalKey::Code(KeyCode::KeyD) => { player.desired_movement.right = false; }
+                                PhysicalKey::Code(KeyCode::KeyA) => { player.desired_movement.left = false; }
+                                PhysicalKey::Code(KeyCode::Space) => { player.desired_movement.up = false; }
+                                PhysicalKey::Code(KeyCode::ShiftLeft) => { player.desired_movement.down = false; }
+                                PhysicalKey::Code(KeyCode::KeyR) => { player.desired_movement.sprint = false; }
+                                _ => (),
+                            }
                         }
                     }
-
                     WindowEvent::CloseRequested => {
                         println!("User exited.");
                         event_loop.exit();
-                    },
+                    }
                     WindowEvent::Resized(physical_size) => {
                         renderer.resize(physical_size);
                     }
-                    //WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
-                    //    renderer.ui_scale = scale_factor as f32;
-                    //}
                     WindowEvent::Focused(f) => {
                         if f {
                             self.on_focus();
@@ -236,15 +232,12 @@ impl ApplicationHandler for Game<'_> {
                             self.on_defocus();
                         }
                     }
-                    // ...
                     WindowEvent::RedrawRequested => {
-                        let player = self.world.entities.read_lock(self.world.player).unwrap();
-
-                        self.clock.tick();
-
-                        //let looking_at2 = player.get_last_air_looking_at(&self.world);
-                        //if self.clock.tick % 5 == 0 {
-                        if true {
+                        if let Ok(player) = self.world.entities.read_lock(self.world.player) {
+                            let player = player.read().unwrap(); // Dereference the read lock
+    
+                            self.clock.tick();
+    
                             let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
                             let facing = player.facing_in_degrees();
                             renderer.text_manager.set_text_on(
@@ -256,33 +249,26 @@ impl ApplicationHandler for Game<'_> {
                                     player.vel.x, player.vel.y, player.vel.z,
                                     facing.x, facing.y,
                                     self.world.block_properties.by_id(looking_at_id).name, looking_at_pos.x, looking_at_pos.y, looking_at_pos.z,
-                                    //last_air_pos.x, last_air_pos.y, last_air_pos.z,
                                     renderer.size.width, renderer.size.height,
                                     self.game_state.paused
                                 ).as_str()
                             );
                         }
-
-                        drop(player);
-
+    
                         self.world.physics_step(self.clock.tick_time);
-
+    
                         self.world.update_loaded_chunks();
                         self.world.spawn_chunk_updates();
                         if self.world.spawn_mesh_updates() {
                             self.world.get_all_chunk_meshes(&renderer.device);
                         }
-                        //println!("through");
-
-
+    
                         match renderer.render(&self.world) {
                             Ok(_) => {}
-                            // Reconfigure the surface if lost
                             Err(wgpu::SurfaceError::Lost) => {
                                 let size = renderer.size;
                                 renderer.resize(size);
-                            },
-                            // All other errors (Outdated, Timeout) should be resolved by the next frame
+                            }
                             Err(e) => eprintln!("{:?}", e),
                         }
                         window.request_redraw();
@@ -293,15 +279,13 @@ impl ApplicationHandler for Game<'_> {
             _ => (),
         }
     }
-
 }
-
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut game = pollster::block_on(Game::new(&event_loop));
-    
+
     event_loop.run_app(&mut game).unwrap();
 }
