@@ -134,8 +134,9 @@ impl ApplicationHandler for Game<'_> {
                         DeviceEvent::MouseMotion { delta } => {
                             if self.game_state.in_game && !self.game_state.paused {
                                 let player_entity = player.deref_mut();
-                                player_entity.write().unwrap().turn_horizontal(renderer.camera.read().unwrap().look_sensitivity * delta.0 as f32);
-                                player_entity.write().unwrap().turn_vertical(renderer.camera.read().unwrap().look_sensitivity * delta.1 as f32);
+                                let look_sensitivity = renderer.camera.look_sensitivity;
+                                player_entity.write().unwrap().turn_horizontal(look_sensitivity * delta.0 as f32);
+                                player_entity.write().unwrap().turn_vertical(look_sensitivity * delta.1 as f32);
                             }
                             if !cfg!(target_os = "macos") {
                                 if self.hold_cursor {
@@ -235,7 +236,7 @@ impl ApplicationHandler for Game<'_> {
     
                             let (looking_at_pos, last_air_pos, looking_at_id) = player.write().unwrap().get_block_looking_at(&self.world);
                             let facing = player.write().unwrap().facing_in_degrees();
-                            renderer.text_manager.write().unwrap().set_text_on(
+                            renderer.text_manager.set_text_on(
                                 0,
                                 format!(
                                     "Looking at: {:?}\nLast air: {:?}\nBlock ID: {:?}\nFacing: {:?}\nPaused: {}",
@@ -249,7 +250,7 @@ impl ApplicationHandler for Game<'_> {
                         self.world.update_loaded_chunks();
                         self.world.spawn_chunk_updates();
                         if self.world.spawn_mesh_updates() {
-                            self.world.get_all_chunk_meshes(&renderer.device.read().unwrap());
+                            self.world.get_all_chunk_meshes(&renderer.device);
                         }
     
                         match renderer.render(&self.world) {
