@@ -139,12 +139,16 @@ impl World {
                     //self.need_generation_update.try_lock().unwrap();
                     let chunk = self.chunks.fetch_lock(handle).unwrap();
                     let mesh_update = &self.need_mesh_update;
-                    self.thread_pool.install(|| {
+                    //let t = std::time::Instant::now();
+                   // self.thread_pool.install(|| {
+                        //let T = std::time::Instant::now();
                         let mut wlock = chunk.write().unwrap();
                         wlock.generate_planet();
                         drop(wlock);
                         mesh_update.lock().unwrap().push_back(handle);
-                    });
+                    //    println!("Time in thread: {:?}", T.elapsed());
+                    //});
+                    //println!("Time in main: {:?}", t.elapsed());
                 }
             }
         }
@@ -162,11 +166,11 @@ impl World {
                     let block_properties = &self.block_properties;
                     let tp = &self.thread_pool;
 
-                    self.thread_pool.install(|| {
+                    //self.thread_pool.install(|| {
                         let mut wlock = chunk.write().unwrap();
                         wlock.make_mesh(block_properties, tp);
                         wlock.ready_to_display = true;
-                    });
+                    //});
                 }
             }
         }
