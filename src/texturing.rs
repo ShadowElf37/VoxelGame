@@ -1,11 +1,11 @@
-use std::sync::{Arc, RwLock};
-use wgpu;
+use std::sync::Arc;
+use image::{ImageBuffer, Rgba, ImageReader};
 
 pub struct TextureSet {
-    pub texture: Arc<RwLock<wgpu::Texture>>,
-    pub view: Arc<RwLock<wgpu::TextureView>>,
-    pub sampler: Arc<RwLock<wgpu::Sampler>>,
-    pub bind_group: Arc<RwLock<wgpu::BindGroup>>,
+    pub texture: Arc<wgpu::Texture>,
+    pub view: Arc<wgpu::TextureView>,
+    pub sampler: Arc<wgpu::Sampler>,
+    pub bind_group: Arc<wgpu::BindGroup>,
 }
 
 pub const TEXTURE_SET_LAYOUT_DESC: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
@@ -32,7 +32,6 @@ pub const TEXTURE_SET_LAYOUT_DESC: wgpu::BindGroupLayoutDescriptor = wgpu::BindG
 
 impl TextureSet {
     pub fn from_fp_vec(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, fp_vec: Vec<String>) -> Self {
-        use image::{ImageBuffer, Rgba, ImageReader};
 
         fn load_rgba8(fp: &str) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
             ImageReader::open(fp)
@@ -50,8 +49,7 @@ impl TextureSet {
             img_array_raw.extend(img_buffer.into_raw());
         }
         // assert that the image dimensions are all equal so they can go in the array without scrambling or misalignment
-        assert!(dimensions.iter().map(|(x, _y)| x).min() == dimensions.iter().map(|(x, _y)| x).max());
-        assert!(dimensions.iter().map(|(_x, y)| y).min() == dimensions.iter().map(|(_x, y)| y).max());
+        assert!(dimensions.iter().all(|&(x, y)| x == dimensions[0].0 && y == dimensions[0].1));
         let dimensions = dimensions[0];
 
         let texture_size = wgpu::Extent3d {
@@ -60,7 +58,7 @@ impl TextureSet {
             depth_or_array_layers: fp_vec.len().try_into().expect("Please do not load more than 4 billion textures. Thank you."),
         };
 
-        let texture = Arc::new(RwLock::new(device.create_texture(
+        let texture = Arc::new(device.create_texture(
             &wgpu::TextureDescriptor {
                 size: texture_size,
                 mip_level_count: 1,
@@ -71,11 +69,11 @@ impl TextureSet {
                 label: None,
                 view_formats: &[],
             }
-        )));
+        ));
 
         queue.write_texture(
             wgpu::ImageCopyTexture {
-                texture: &texture.read().unwrap(),
+                texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -89,12 +87,12 @@ impl TextureSet {
             texture_size,
         );
 
-        let view = Arc::new(RwLock::new(texture.read().unwrap().create_view(&wgpu::TextureViewDescriptor {
+        let view = Arc::new(texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(wgpu::TextureViewDimension::D2Array),
             ..Default::default()
-        })));
+        }));
 
-        let sampler = Arc::new(RwLock::new(device.create_sampler(&wgpu::SamplerDescriptor {
+        let sampler = Arc::new(device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -102,24 +100,24 @@ impl TextureSet {
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
-        })));
+        }));
 
-        let bind_group = Arc::new(RwLock::new(device.create_bind_group(
+        let bind_group = Arc::new(device.create_bind_group(
             &wgpu::BindGroupDescriptor {
                 layout: &layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view.read().unwrap()),
+                        resource: wgpu::BindingResource::TextureView(&view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler.read().unwrap()),
+                        resource: wgpu::BindingResource::Sampler(&sampler),
                     }
                 ],
                 label: None,
             }
-        )));
+        ));
 
         Self {
             texture,

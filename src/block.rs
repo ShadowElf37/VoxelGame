@@ -3,7 +3,7 @@ use crate::geometry::Facing;
 
 pub type BlockID = u16;
 
-mod block_proto_defaults {
+mod BlockProtoDefaults {
     pub fn r#true () -> bool {true}
     pub fn tex_face_map_zeros () -> [usize; 6] {[0, 0, 0, 0, 0, 0]}
 }
@@ -13,9 +13,9 @@ pub struct BlockProto {
     pub name: String,
     pub textures: Vec<String>,
 
-    #[serde(default = "block_proto_defaults::tex_face_map_zeros")]
+    #[serde(default = "BlockProtoDefaults::tex_face_map_zeros")]
     pub tex_face_map: [usize; 6], // newsud
-    #[serde(default = "block_proto_defaults::r#true")]
+    #[serde(default = "BlockProtoDefaults::r#true")]
     pub solid: bool,
     #[serde(default)]
     pub transparent: bool,

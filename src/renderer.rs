@@ -426,7 +426,7 @@ impl<'a> Renderer<'a> {
                 render_pass.set_pipeline(pipeline);
                 render_pass.set_bind_group(0, &self.frame_data_bind_group, &[]);
                 for (i, texture_set) in self.texture_sets.iter().enumerate() {
-                    render_pass.set_bind_group((i + 1) as u32, &texture_set.bind_group.read().unwrap(), &[]);
+                    render_pass.set_bind_group((i + 1) as u32, &texture_set.bind_group, &[]);
                 }
                 if let Some(index_buffer) = &self.index_buffer {
                     render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
