@@ -8,8 +8,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{WindowEvent, DeviceEvent, Event};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
-use glam::Vec3;
-use crate::chunk::CHUNK_SIZE_F;
+use glam::{Vec3};
 
 mod renderer;
 mod geometry;
@@ -62,20 +61,6 @@ impl Game<'_> {
             world,
             clock: clock::Clock::new(),
         }
-    }
-
-    // MARK: UPDATE
-    pub fn update(&mut self, dt: f32) {
-        // Extract player position before any mutable borrow
-        let player_pos = {
-            let player_entity = self.world.entities.read_lock(self.world.player).unwrap();
-            player_entity.pos
-        };
-    
-        // These methods require mutable access to the player entity
-        self.world.load_chunks_around_player();
-        self.world.unload_chunks_outside_radius();
-        self.world.physics_step(dt);
     }
 
     pub fn on_focus(&mut self) {
@@ -205,7 +190,6 @@ impl ApplicationHandler for Game<'_> {
                             _ => ()
                         }
                     }
-
                     WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Released, repeat:false, ..}, is_synthetic: false, ..} => {
                         let mut player = self.world.entities.write_lock(self.world.player).unwrap();
                         match physical_key {
@@ -224,15 +208,12 @@ impl ApplicationHandler for Game<'_> {
                         println!("User exited.");
                         event_loop.exit();
                     },
-
                     WindowEvent::Resized(physical_size) => {
                         renderer.resize(physical_size);
                     }
-
                     //WindowEvent::ScaleFactorChanged{scale_factor, ..} => {
                     //    renderer.ui_scale = scale_factor as f32;
                     //}
-
                     WindowEvent::Focused(f) => {
                         if f {
                             self.on_focus();
@@ -240,69 +221,55 @@ impl ApplicationHandler for Game<'_> {
                             self.on_defocus();
                         }
                     }
-                    
+                    // ...
                     WindowEvent::RedrawRequested => {
                         let player = self.world.entities.read_lock(self.world.player).unwrap();
-                    
+
                         self.clock.tick();
-                    
+
+                        //let looking_at2 = player.get_last_air_looking_at(&self.world);
+                        //if self.clock.tick % 5 == 0 {
                         if true {
                             let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
                             let facing = player.facing_in_degrees();
-                            
-                            // Calculate chunk coordinates
-                            let chunk_x = (player.pos.x / CHUNK_SIZE_F).floor() as i32;
-                            let chunk_y = (player.pos.y / CHUNK_SIZE_F).floor() as i32;
-                            let chunk_z = (player.pos.z / CHUNK_SIZE_F).floor() as i32;
-                        
                             renderer.text_manager.set_text_on(
                                 0,
                                 format!(
-                                    "Frame={} Time={:.1} FPS={:.1}\nX=({:.2}, {:.2}, {:.2})\nV=({:.2}, {:.2}, {:.2})\nφ={:.0}° ϴ={:.0}°\nLooking: {} ({:.0}, {:.0}, {:.0})\nChunk: ({}, {}, {})\nW={} H={}\nPAUSED = {}",
+                                    "Frame={} Time={:.1} FPS={:.1}\nX=({:.2}, {:.2}, {:.2})\nV=({:.2}, {:.2}, {:.2})\nφ={:.0}° ϴ={:.0}°\nLooking: {} ({:.0}, {:.0}, {:.0})\nW={} H={}\nPAUSED = {}",
                                     self.clock.tick, self.clock.time, self.clock.tps,
                                     player.pos.x, player.pos.y, player.pos.z,
                                     player.vel.x, player.vel.y, player.vel.z,
                                     facing.x, facing.y,
                                     self.world.block_properties.by_id(looking_at_id).name, looking_at_pos.x, looking_at_pos.y, looking_at_pos.z,
-                                    chunk_x, chunk_y, chunk_z, // Add chunk coordinates here
+                                    //last_air_pos.x, last_air_pos.y, last_air_pos.z,
                                     renderer.size.width, renderer.size.height,
                                     self.game_state.paused
                                 ).as_str()
                             );
                         }
-                    
-                        drop(player); // Drop the player borrow here
-                    
-                        // Store tick_time in a local variable
-                        let tick_time = self.clock.tick_time;
-                    
-                        // MARK:
-                        // Call update with the local tick_time variable
-                        self.update(tick_time);
-                    
-                        // Spawn chunk updates
+
+                        drop(player);
+
+                        self.world.physics_step(self.clock.tick_time);
+
+                        self.world.update_loaded_chunks();
                         self.world.spawn_chunk_updates();
-                        
-                        // Spawn mesh updates and get all chunk meshes if necessary
                         if self.world.spawn_mesh_updates() {
                             self.world.get_all_chunk_meshes(&renderer.device);
                         }
-                    
-                        // Get the window size
-                        let size = window.inner_size();
-                    
-                        // Render the world
+                        //println!("through");
+
+
                         match renderer.render(&self.world) {
                             Ok(_) => {}
                             // Reconfigure the surface if lost
                             Err(wgpu::SurfaceError::Lost) => {
+                                let size = renderer.size;
                                 renderer.resize(size);
                             },
                             // All other errors (Outdated, Timeout) should be resolved by the next frame
                             Err(e) => eprintln!("{:?}", e),
                         }
-                    
-                        // Request a redraw
                         window.request_redraw();
                     }
                     _ => (),
