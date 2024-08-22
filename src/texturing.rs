@@ -32,6 +32,7 @@ pub const TEXTURE_SET_LAYOUT_DESC: wgpu::BindGroupLayoutDescriptor = wgpu::BindG
 
 impl TextureSet {
     pub fn from_fp_vec(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, fp_vec: Vec<String>) -> Self {
+        println!("Loading textures from file paths: {:?}", fp_vec);
 
         fn load_rgba8(fp: &str) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
             ImageReader::open(fp)

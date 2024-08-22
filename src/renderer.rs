@@ -64,7 +64,13 @@ pub struct TextManager {
 }
 impl TextManager {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, screen_size: winit::dpi::PhysicalSize<u32>, depth_stencil: Option<wgpu::DepthStencilState>) -> Self {
-        let fonts_to_load = std::fs::read_dir("assets/fonts/").unwrap().map(|path| glyphon::cosmic_text::fontdb::Source::File(path.unwrap().path()));
+        let fonts_to_load = std::fs::read_dir("assets/fonts/")
+            .unwrap()
+            .map(|path| {
+                let path = path.unwrap().path();
+                println!("Loading font: {:?}", path); // Debug print
+                glyphon::cosmic_text::fontdb::Source::File(path)
+            });
         let font_system = glyphon::FontSystem::new_with_fonts(fonts_to_load);
         let swash_cache = glyphon::SwashCache::new();
         let cache = glyphon::Cache::new(device);
