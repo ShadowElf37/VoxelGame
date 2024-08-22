@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::fs;
 use image::{ImageBuffer, Rgba, ImageReader};
 
 pub struct TextureSet {
@@ -8,50 +9,38 @@ pub struct TextureSet {
     pub bind_group: Arc<wgpu::BindGroup>,
 }
 
-pub const TEXTURE_SET_LAYOUT_DESC: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
-    entries: &[
-        wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Texture {
-                multisampled: false,
-                view_dimension: wgpu::TextureViewDimension::D2Array,
-                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-            },
-            count: None,
-        },
-        wgpu::BindGroupLayoutEntry {
-            binding: 1,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-            count: None,
-        },
-    ],
-    label: Some("texture_bind_group_layout"),
-};
-
 impl TextureSet {
     pub fn from_fp_vec(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, fp_vec: Vec<String>) -> Self {
         println!("Loading textures from file paths: {:?}", fp_vec);
 
-        fn load_rgba8(fp: &str) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
-            ImageReader::open(fp)
-                .expect(&format!("Failed to load {}", fp))
-                .decode()
-                .expect(&format!("Failed to decode {}", fp))
-                .into_rgba8()
+        fn load_rgba8(fp: &str) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, String> {
+            println!("Loading image from file path: {}", fp);
+        
+            // Check if the file exists
+            if !fs::metadata(fp).is_ok() {
+                return Err(format!("File does not exist: {}", fp));
+            }
+            // Attempt to open the file
+            let reader = ImageReader::open(fp).map_err(|e| format!("Failed to load {}: {}", fp, e))?;
+            // Attempt to decode the image
+            let image = reader.decode().map_err(|e| format!("Failed to decode {}: {}", fp, e))?;
+            // Convert to RGBA8 format
+            let rgba_image = image.into_rgba8();
+            Ok(rgba_image)
         }
 
         let mut dimensions: Vec<(u32, u32)> = vec![];
         let mut img_array_raw: Vec<u8> = vec![];
         for fp in &fp_vec {
             let img_buffer = load_rgba8(fp);
-            dimensions.push(img_buffer.dimensions());
-            img_array_raw.extend(img_buffer.into_raw());
+            let dim = img_buffer.clone().unwrap().dimensions();
+            println!("Loaded image dimensions: {:?}", dim);
+            dimensions.push(dim);
+            img_array_raw.extend(img_buffer.unwrap().into_raw());
         }
-        // assert that the image dimensions are all equal so they can go in the array without scrambling or misalignment
         assert!(dimensions.iter().all(|&(x, y)| x == dimensions[0].0 && y == dimensions[0].1));
         let dimensions = dimensions[0];
+        println!("Final texture dimensions: {:?}", dimensions);
 
         let texture_size = wgpu::Extent3d {
             width: dimensions.0,

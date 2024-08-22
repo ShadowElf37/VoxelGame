@@ -49,8 +49,13 @@ impl BlockProtoSet {
     
     pub fn from_toml(fp: &str) -> Self {
         use std::fs::read_to_string;
+        println!("Reading file: {}", fp);
         let data = read_to_string(fp).expect(&format!("Couldn't open {}", fp));
+        println!("File content: {}", data);
+        
         let mut wrapper = toml::from_str::<BlockProtoArrayTableWrapper>(&data).expect("Improperly formatted toml");
+        println!("Parsed TOML: {:?}", wrapper);
+
         let mut true_tex_offset = 0;
 
         for block in wrapper.blocks.iter_mut() {
@@ -58,19 +63,21 @@ impl BlockProtoSet {
                 *val += true_tex_offset;
             }
             true_tex_offset += block.textures.len();
-            //println!("{:?}", block.tex_face_map);
+            println!("Updated block: {:?}", block);
         }
 
-        let mut actual_blocks = Vec::<BlockProto>::with_capacity(wrapper.blocks.len()+1);
+        let mut actual_blocks = Vec::<BlockProto>::with_capacity(wrapper.blocks.len() + 1);
         // ADD AIR FOR CONVENIENCE
-        actual_blocks.push(BlockProto{
+        actual_blocks.push(BlockProto {
             name: "Air".to_string(),
             textures: vec![],
-            tex_face_map: [0,0,0,0,0,0],
+            tex_face_map: [0, 0, 0, 0, 0, 0],
             solid: false,
             transparent: true,
         });
         actual_blocks.extend(wrapper.blocks);
+
+        println!("Final blocks: {:?}", actual_blocks);
 
         Self {
             blocks: actual_blocks,
@@ -88,7 +95,7 @@ impl BlockProtoSet {
         if !self.blocks.is_empty() {
             for block in &self.blocks {
                 println!("Processing block: {:?}", block);
-        
+    
                 for texture in &block.textures {
                     let mut s = "assets/textures/".to_string();
                     s.push_str(texture);

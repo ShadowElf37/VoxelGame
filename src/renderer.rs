@@ -5,6 +5,7 @@ use wgpu::PresentMode;
 use crate::texturing;
 use crate::world;
 use crate::camera;
+use crate::block::BlockProtoSet;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -41,7 +42,7 @@ impl TextObject {
             scale: tm.ui_scale,
             bounds: glyphon::TextBounds {
                 left: 0,
-                right: tm.screen_size.0 as i32,
+                right: 0,
                 top: 0,
                 bottom: tm.screen_size.1 as i32,
             },
@@ -62,14 +63,13 @@ pub struct TextManager {
 
     text_objects: Vec<TextObject>
 }
+
 impl TextManager {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, screen_size: winit::dpi::PhysicalSize<u32>, depth_stencil: Option<wgpu::DepthStencilState>) -> Self {
         let fonts_to_load = std::fs::read_dir("assets/fonts/")
             .unwrap()
             .map(|path| {
-                let path = path.unwrap().path();
-                println!("Loading font: {:?}", path); // Debug print
-                glyphon::cosmic_text::fontdb::Source::File(path)
+                glyphon::cosmic_text::fontdb::Source::File(path.unwrap().path())
             });
         let font_system = glyphon::FontSystem::new_with_fonts(fonts_to_load);
         let swash_cache = glyphon::SwashCache::new();
@@ -120,8 +120,8 @@ impl TextManager {
             device,
             queue,
             &mut self.font_system,
-            &mut self.atlas, // Add this argument
-            &self.viewport, // Add this argument
+            &mut self.atlas,
+            &self.viewport,
             text_areas.iter().cloned(),
             &mut self.swash_cache
         ).unwrap();
@@ -275,8 +275,28 @@ impl<'a> Renderer<'a> {
 
         let shader = device.create_shader_module(include_wgsl!("main.wgsl"));
 
-        let texture_bind_group_layout = device.create_bind_group_layout(&texturing::TEXTURE_SET_LAYOUT_DESC);
-
+        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("texture_bind_group_layout"),
+        });
+        
         println!("Loading fonts...");
         let mut text_manager = TextManager::new(&device, &queue, surface_format, size, depth_stencil_state.clone());
         text_manager.new_text_object(12.0, 10.0, 10.0);
@@ -328,24 +348,25 @@ impl<'a> Renderer<'a> {
         }
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Pipeline Layout"),
+            label: Some("Main Pipeline Layout"),
             bind_group_layouts: &bind_group_layouts,
             push_constant_ranges: &[],
         });
 
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             cache: None,
-            label: Some("Render Pipeline"),
+            label: Some("Main Render Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &self.shader,
-                entry_point: "main",
+                entry_point: "vs_main",
                 buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
+
             },
             fragment: Some(wgpu::FragmentState {
                 module: &self.shader,
-                entry_point: "main",
+                entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: self.surface_config.format,
                     blend: Some(wgpu::BlendState::REPLACE),
@@ -361,22 +382,12 @@ impl<'a> Renderer<'a> {
     }
 
     pub fn load_texture_set(&mut self, fp_vec: Vec<String>) {
-        if fp_vec.is_empty() {
-            panic!("The file path vector is empty. Please provide at least one texture file path.");
-        }
         println!("Loading texture set with file paths: {:?}", fp_vec);
-    
-        let device = match self.device.read() {
-            Ok(device) => device,
-            Err(_) => panic!("Failed to acquire read lock on device."),
-        };
-    
-        let queue = match self.queue.read() {
-            Ok(queue) => queue,
-            Err(_) => panic!("Failed to acquire read lock on queue."),
-        };
-    
-        self.texture_sets.push(texturing::TextureSet::from_fp_vec(&device, &queue, &self.texture_bind_group_layout, fp_vec));
+        let device = self.device.read().unwrap();
+        let queue = self.queue.read().unwrap();
+        let texture_set = texturing::TextureSet::from_fp_vec(&device, &queue, &self.texture_bind_group_layout, fp_vec);
+        self.texture_sets.push(texture_set);
+        println!("Texture set loaded successfully.");
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -385,8 +396,7 @@ impl<'a> Renderer<'a> {
             self.aspect_ratio = new_size.width as f32 / new_size.height as f32;
             self.surface_config.width = new_size.width;
             self.surface_config.height = new_size.height;
-            let device = self.device.read().unwrap();
-            self.surface.configure(&device, &self.surface_config);
+            self.surface.configure(&self.device.read().unwrap(), &self.surface_config);
         }
     }
 
@@ -424,8 +434,8 @@ impl<'a> Renderer<'a> {
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: None,
                 occlusion_query_set: None,
+                timestamp_writes: None,
             });
 
             if let Some(pipeline) = &self.pipeline {
@@ -434,12 +444,7 @@ impl<'a> Renderer<'a> {
                 for (i, texture_set) in self.texture_sets.iter().enumerate() {
                     render_pass.set_bind_group((i + 1) as u32, &texture_set.bind_group, &[]);
                 }
-                if let Some(index_buffer) = &self.index_buffer {
-                    render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                    for &index_count in &self.index_counts {
-                        render_pass.draw_indexed(0..index_count, 0, 0..1);
-                    }
-                }
+                render_pass.draw(0..3, 0..1);
             }
 
             self.text_manager.read().unwrap().render(&mut render_pass);
