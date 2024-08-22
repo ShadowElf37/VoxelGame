@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::time::Instant;
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::mem::{size_of, align_of};

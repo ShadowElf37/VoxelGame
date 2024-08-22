@@ -1,16 +1,12 @@
-use crate::block;
-use std::path::PathBuf;
+use std::sync::Arc;
+use wgpu::include_wgsl;
+use wgpu::util::DeviceExt;
+use wgpu::PresentMode;
+use glam::Vec3;
 use crate::texturing;
-use wgpu::BufferDescriptor;
 use crate::world;
 use crate::geometry;
 use crate::camera;
-use glam::{Vec3A, Mat4};
-use wgpu::include_wgsl;
-use wgpu::util::DeviceExt;
-use std::sync::Arc;
-use wgpu::PresentMode;
-use crate::geometry::Vertex;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -538,7 +534,6 @@ impl<'a> Renderer<'a> {
 
             // SEND IT ALL IN
             
-            use glam::{Vec3, Mat3};
             let player = world.entities.read_lock(world.player).unwrap();
             let pos = player.pos;
             let facing = player.facing;

@@ -11,22 +11,22 @@ const DEG_TO_RAD: f32 = 0.0174532925;
 
 #[derive(Clone)]
 pub struct DesiredMovement {
-    pub FORWARD: bool,
-    pub BACKWARD: bool,
-    pub RIGHT: bool,
-    pub LEFT: bool,
-    pub UP: bool,
-    pub DOWN: bool,
-    pub SPRINT: bool,
+    pub forward: bool,
+    pub backward: bool,
+    pub right: bool,
+    pub left: bool,
+    pub up: bool,
+    pub down: bool,
+    pub sprint: bool,
 }
 const NO_MOVEMENT: DesiredMovement = DesiredMovement {
-    FORWARD: false,
-    BACKWARD: false,
-    RIGHT: false,
-    LEFT: false,
-    UP: false,
-    DOWN: false,
-    SPRINT: false,
+    forward: false,
+    backward: false,
+    right: false,
+    left: false,
+    up: false,
+    down: false,
+    sprint: false,
 };
 
 
@@ -108,32 +108,32 @@ impl Entity {
             self.acc_rate = 150.0;
         }
 
-        let sprint_factor = if self.desired_movement.SPRINT { 2.0 } else { 1.0 };
+        let sprint_factor = if self.desired_movement.sprint { 2.0 } else { 1.0 };
 
-        if self.desired_movement.FORWARD {
+        if self.desired_movement.forward {
             self.acc += self.get_moving_forward_xy(1.0) * sprint_factor;
         }
-        if self.desired_movement.BACKWARD {
+        if self.desired_movement.backward {
             self.acc += self.get_moving_forward_xy(-1.0) * sprint_factor;
         }
-        if self.desired_movement.RIGHT {
+        if self.desired_movement.right {
             self.acc += self.get_moving_rightward(1.0) * sprint_factor;
         }
-        if self.desired_movement.LEFT {
+        if self.desired_movement.left {
             self.acc += self.get_moving_rightward(-1.0) * sprint_factor;
         }
 
         if self.flying {
-            if self.desired_movement.UP {
+            if self.desired_movement.up {
                 self.acc += self.get_moving_up(1.0);
             }
-            if self.desired_movement.DOWN {
+            if self.desired_movement.down {
                 self.acc += self.get_moving_up(-1.0);
             }
         } else {
             if self.in_air {
                 self.acc.z -= self.gravity;
-            } else if self.desired_movement.UP {
+            } else if self.desired_movement.up {
                 self.vel.z = (self.jump_height * self.gravity * 2.0).sqrt(); //sqrt(9.8*2) = 4.427188
             }
         }

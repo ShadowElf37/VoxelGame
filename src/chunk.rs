@@ -1,11 +1,10 @@
 use std::sync::Mutex;
-use std::sync::Arc;
-use crate::block::{BlockProtoSet, BlockID};
-use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
 use ndarray::{Ix3, Axis};
 use noise::NoiseFn;
 use glam::Vec3;
+use crate::block::{BlockProtoSet, BlockID};
+use crate::geometry::{Vertex, Facing};
 
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;

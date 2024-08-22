@@ -41,8 +41,8 @@ impl TextureSet {
             img_array_raw.extend(img_buffer.into_raw());
         }
         // assert that the image dimensions are all equal so they can go in the array without scrambling or misalignment
-        assert!(dimensions.iter().map(|(x,y)| x).min() == dimensions.iter().map(|(x,y)| x).max());
-        assert!(dimensions.iter().map(|(x,y)| y).min() == dimensions.iter().map(|(x,y)| y).max());
+        assert!(dimensions.iter().map(|(x,_y)| x).min() == dimensions.iter().map(|(x,_y)| x).max());
+        assert!(dimensions.iter().map(|(_x,y)| y).min() == dimensions.iter().map(|(_x,y)| y).max());
         let dimensions = dimensions[0];
 
         let texture_size = wgpu::Extent3d {

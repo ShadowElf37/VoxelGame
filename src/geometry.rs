@@ -1,5 +1,3 @@
-use glam::f32::Vec3A;
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {

@@ -1,14 +1,12 @@
-use winit::event::KeyEvent;
-use winit::event::ElementState;
-use winit::keyboard::PhysicalKey;
-use winit::keyboard::KeyCode;
-use winit::event::DeviceId;
 use std::sync::Arc;
-use winit::application::ApplicationHandler;
-use winit::event::{WindowEvent, DeviceEvent, Event};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowId};
-use glam::{Vec3};
+use glam::Vec3;
+use winit::{
+    application::ApplicationHandler,
+    event::{DeviceEvent, DeviceId, ElementState, KeyEvent, WindowEvent},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    keyboard::{KeyCode, PhysicalKey},
+    window::{Window, WindowId},
+};
 
 mod renderer;
 mod geometry;
@@ -77,9 +75,14 @@ impl Game<'_> {
             window.set_cursor_position(renderer.window_center_px).unwrap();
 
             #[cfg(target_os = "macos")]
-            window.set_cursor_grab(winit::window::CursorGrabMode::Locked);
-
-            
+            match window.set_cursor_grab(winit::window::CursorGrabMode::Locked) {
+                Ok(_) => {
+                    // Successfully set cursor grab mode
+                }
+                Err(e) => {
+                    eprintln!("Failed to set cursor grab mode: {:?}", e);
+                }
+            }          
         }
     }
     pub fn on_defocus(&mut self) {
@@ -88,7 +91,14 @@ impl Game<'_> {
         window.set_cursor_visible(true);
 
         #[cfg(any(target_os = "macos", target_os = "linux"))]
-        window.set_cursor_grab(winit::window::CursorGrabMode::None);
+        match window.set_cursor_grab(winit::window::CursorGrabMode::None) {
+            Ok(_) => {
+                // Successfully set cursor grab mode
+            }
+            Err(e) => {
+                eprintln!("Failed to set cursor grab mode: {:?}", e);
+            }
+        }
     }
 }
 
@@ -173,13 +183,13 @@ impl ApplicationHandler for Game<'_> {
                         if !self.game_state.paused {
                             let mut player = self.world.entities.write_lock(self.world.player).unwrap();
                             match physical_key {
-                                PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = true;}
-                                PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = true;}
-                                PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = true;}
-                                PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = true;}
-                                PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = true;}
-                                PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = true;}
-                                PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.SPRINT = true;}
+                                PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.forward = true;}
+                                PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.backward = true;}
+                                PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.right = true;}
+                                PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.left = true;}
+                                PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.up = true;}
+                                PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.down = true;}
+                                PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.sprint = true;}
                                 _ => ()
                             }
                         }
@@ -198,13 +208,13 @@ impl ApplicationHandler for Game<'_> {
                     WindowEvent::KeyboardInput {event: KeyEvent{physical_key, state: ElementState::Released, repeat:false, ..}, is_synthetic: false, ..} => {
                         let mut player = self.world.entities.write_lock(self.world.player).unwrap();
                         match physical_key {
-                            PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.FORWARD = false;}
-                            PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.BACKWARD = false;}
-                            PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.RIGHT = false;}
-                            PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.LEFT = false;}
-                            PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.UP = false;}
-                            PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.DOWN = false;}
-                            PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.SPRINT = false;}
+                            PhysicalKey::Code(KeyCode::KeyW) => {player.desired_movement.forward = false;}
+                            PhysicalKey::Code(KeyCode::KeyS) => {player.desired_movement.backward = false;}
+                            PhysicalKey::Code(KeyCode::KeyD) => {player.desired_movement.right = false;}
+                            PhysicalKey::Code(KeyCode::KeyA) => {player.desired_movement.left = false;}
+                            PhysicalKey::Code(KeyCode::Space) => {player.desired_movement.up = false;}
+                            PhysicalKey::Code(KeyCode::ShiftLeft) => {player.desired_movement.down = false;}
+                            PhysicalKey::Code(KeyCode::KeyR) => {player.desired_movement.sprint = false;}
                             _ => ()
                         }
                     }

@@ -1,12 +1,12 @@
-use crate::block::BlockID;
 use std::time::SystemTime;
 use std::sync::Mutex;
-use crate::entity::*;
 use std::collections::VecDeque;
 use glam::f32::Vec3;
 use crate::block;
-use crate::memarena::{Arena, ArenaHandle};
+use crate::block::BlockID;
 use crate::chunk::{Chunk, CHUNK_SIZE_F};
+use crate::entity::*;
+use crate::memarena::{Arena, ArenaHandle};
 
 const ENTITY_LIMIT: usize = 128;
 pub const RENDER_DISTANCE: usize = 10;

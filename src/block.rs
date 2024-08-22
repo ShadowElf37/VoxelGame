@@ -1,23 +1,20 @@
 use serde::Deserialize;
-use crate::geometry::{Vertex, Facing};
-use ndarray::prelude::*;
-use ndarray::{Array, Ix3, Axis};
-
+use crate::geometry::Facing;
 
 pub type BlockID = u16;
 
-mod BlockProtoDefaults {
+mod block_proto_defaults {
     pub fn True () -> bool {true}
-    pub fn TexFaceMapZeros () -> [usize; 6] {[0, 0, 0, 0, 0, 0]}
+    pub fn tex_face_map_zeros () -> [usize; 6] {[0, 0, 0, 0, 0, 0]}
 }
 #[derive(Deserialize, Debug)]
 pub struct BlockProto {
     pub name: String,
     pub textures: Vec<String>,
 
-    #[serde(default = "BlockProtoDefaults::TexFaceMapZeros")]
+    #[serde(default = "block_proto_defaults::tex_face_map_zeros")]
     pub tex_face_map: [usize; 6], // newsud
-    #[serde(default = "BlockProtoDefaults::True")]
+    #[serde(default = "block_proto_defaults::True")]
     pub solid: bool,
     #[serde(default)]
     pub transparent: bool,

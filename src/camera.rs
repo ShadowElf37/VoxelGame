@@ -1,12 +1,8 @@
 extern crate glam;
 
 use std::sync::RwLock;
+use glam::{Mat4, Vec3};
 use crate::entity;
-
-use glam::{
-    Vec3,
-    Mat4,
-};
 
 const DEG_TO_RAD: f32 = 0.0174532925;
 
