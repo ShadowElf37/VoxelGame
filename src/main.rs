@@ -8,7 +8,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{WindowEvent, DeviceEvent, Event};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
-use glam::{Vec3};
+use glam::vec3;
 
 mod renderer;
 mod geometry;
