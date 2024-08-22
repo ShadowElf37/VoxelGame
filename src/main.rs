@@ -6,6 +6,7 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
+use std::ops::{Deref, DerefMut};
 
 mod renderer;
 mod geometry;
@@ -128,12 +129,13 @@ impl ApplicationHandler for Game<'_> {
             (Some(window), Some(renderer)) => {
                 if let Ok(player_lock) = self.world.entities.write_lock(self.world.player) {
                     let mut player = player_lock.write().unwrap(); // Dereference the write lock
-
+                
                     match event {
                         DeviceEvent::MouseMotion { delta } => {
                             if self.game_state.in_game && !self.game_state.paused {
-                                player.turn_horizontal(renderer.camera.look_sensitivity * delta.0 as f32);
-                                player.turn_vertical(renderer.camera.look_sensitivity * delta.1 as f32);
+                                let player_entity = player.deref_mut();
+                                player_entity.write().unwrap().turn_horizontal(renderer.camera.read().unwrap().look_sensitivity * delta.0 as f32);
+                                player_entity.write().unwrap().turn_vertical(renderer.camera.read().unwrap().look_sensitivity * delta.1 as f32);
                             }
                             if !cfg!(target_os = "macos") {
                                 if self.hold_cursor {
@@ -157,7 +159,7 @@ impl ApplicationHandler for Game<'_> {
                         if !self.game_state.paused {
                             if let Ok(player_lock) = self.world.entities.read_lock(self.world.player) {
                                 let player = player_lock.read().unwrap(); // Dereference the read lock
-                                let (destroy_location, place_location, _) = player.get_block_looking_at(&self.world);
+                                let (destroy_location, place_location, _) = player.read().unwrap().get_block_looking_at(&self.world);
                                 match button {
                                     winit::event::MouseButton::Left => { /* Handle left click */ }
                                     winit::event::MouseButton::Right => { /* Handle right click */ }
@@ -170,14 +172,15 @@ impl ApplicationHandler for Game<'_> {
                         if !self.game_state.paused {
                             if let Ok(player_lock) = self.world.entities.write_lock(self.world.player) {
                                 let mut player = player_lock.write().unwrap(); // Dereference the write lock
+                                let player_entity = Arc::get_mut(&mut player).unwrap(); // Dereference the Arc to get the Entity
                                 match physical_key {
-                                    PhysicalKey::Code(KeyCode::KeyW) => { player.desired_movement.forward = true; }
-                                    PhysicalKey::Code(KeyCode::KeyS) => { player.desired_movement.backward = true; }
-                                    PhysicalKey::Code(KeyCode::KeyD) => { player.desired_movement.right = true; }
-                                    PhysicalKey::Code(KeyCode::KeyA) => { player.desired_movement.left = true; }
-                                    PhysicalKey::Code(KeyCode::Space) => { player.desired_movement.up = true; }
-                                    PhysicalKey::Code(KeyCode::ShiftLeft) => { player.desired_movement.down = true; }
-                                    PhysicalKey::Code(KeyCode::KeyR) => { player.desired_movement.sprint = true; }
+                                    PhysicalKey::Code(KeyCode::KeyW) => { player_entity.write().unwrap().desired_movement.forward = true; }
+                                    PhysicalKey::Code(KeyCode::KeyS) => { player_entity.write().unwrap().desired_movement.backward = true; }
+                                    PhysicalKey::Code(KeyCode::KeyD) => { player_entity.write().unwrap().desired_movement.right = true; }
+                                    PhysicalKey::Code(KeyCode::KeyA) => { player_entity.write().unwrap().desired_movement.left = true; }
+                                    PhysicalKey::Code(KeyCode::Space) => { player_entity.write().unwrap().desired_movement.up = true; }
+                                    PhysicalKey::Code(KeyCode::ShiftLeft) => { player_entity.write().unwrap().desired_movement.down = true; }
+                                    PhysicalKey::Code(KeyCode::KeyR) => { player_entity.write().unwrap().desired_movement.sprint = true; }
                                     _ => (),
                                 }
                             }
@@ -197,14 +200,15 @@ impl ApplicationHandler for Game<'_> {
                     WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state: ElementState::Released, repeat: false, .. }, is_synthetic: false, .. } => {
                         if let Ok(player_lock) = self.world.entities.write_lock(self.world.player) {
                             let mut player = player_lock.write().unwrap(); // Dereference the write lock
+                            let player_entity = Arc::get_mut(&mut player).unwrap(); // Dereference the Arc to get the Entity
                             match physical_key {
-                                PhysicalKey::Code(KeyCode::KeyW) => { player.desired_movement.forward = false; }
-                                PhysicalKey::Code(KeyCode::KeyS) => { player.desired_movement.backward = false; }
-                                PhysicalKey::Code(KeyCode::KeyD) => { player.desired_movement.right = false; }
-                                PhysicalKey::Code(KeyCode::KeyA) => { player.desired_movement.left = false; }
-                                PhysicalKey::Code(KeyCode::Space) => { player.desired_movement.up = false; }
-                                PhysicalKey::Code(KeyCode::ShiftLeft) => { player.desired_movement.down = false; }
-                                PhysicalKey::Code(KeyCode::KeyR) => { player.desired_movement.sprint = false; }
+                                PhysicalKey::Code(KeyCode::KeyW) => { player_entity.write().unwrap().desired_movement.forward = false; }
+                                PhysicalKey::Code(KeyCode::KeyS) => { player_entity.write().unwrap().desired_movement.backward = false; }
+                                PhysicalKey::Code(KeyCode::KeyD) => { player_entity.write().unwrap().desired_movement.right = false; }
+                                PhysicalKey::Code(KeyCode::KeyA) => { player_entity.write().unwrap().desired_movement.left = false; }
+                                PhysicalKey::Code(KeyCode::Space) => { player_entity.write().unwrap().desired_movement.up = false; }
+                                PhysicalKey::Code(KeyCode::ShiftLeft) => { player_entity.write().unwrap().desired_movement.down = false; }
+                                PhysicalKey::Code(KeyCode::KeyR) => { player_entity.write().unwrap().desired_movement.sprint = false; }
                                 _ => (),
                             }
                         }
@@ -229,9 +233,9 @@ impl ApplicationHandler for Game<'_> {
     
                             self.clock.tick();
     
-                            let (looking_at_pos, last_air_pos, looking_at_id) = player.get_block_looking_at(&self.world);
-                            let facing = player.facing_in_degrees();
-                            renderer.text_manager.set_text_on(
+                            let (looking_at_pos, last_air_pos, looking_at_id) = player.write().unwrap().get_block_looking_at(&self.world);
+                            let facing = player.write().unwrap().facing_in_degrees();
+                            renderer.text_manager.write().unwrap().set_text_on(
                                 0,
                                 format!(
                                     "Looking at: {:?}\nLast air: {:?}\nBlock ID: {:?}\nFacing: {:?}\nPaused: {}",
@@ -245,7 +249,7 @@ impl ApplicationHandler for Game<'_> {
                         self.world.update_loaded_chunks();
                         self.world.spawn_chunk_updates();
                         if self.world.spawn_mesh_updates() {
-                            self.world.get_all_chunk_meshes(&renderer.device);
+                            self.world.get_all_chunk_meshes(&renderer.device.read().unwrap());
                         }
     
                         match renderer.render(&self.world) {

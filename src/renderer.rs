@@ -230,7 +230,7 @@ impl<'a> Renderer<'a> {
             compare: Some(wgpu::CompareFunction::LessEqual),
             lod_min_clamp: 0.0,
             lod_max_clamp: 100.0,
-            anisotropy_clamp: 0,
+            anisotropy_clamp: 1,
             border_color: None,
             label: Some("Depth Texture Sampler"),
         });
@@ -414,7 +414,7 @@ impl<'a> Renderer<'a> {
                 render_pass.set_pipeline(pipeline);
                 render_pass.set_bind_group(0, &self.frame_data_bind_group, &[]);
                 for (i, texture_set) in self.texture_sets.iter().enumerate() {
-                    render_pass.set_bind_group((i + 1) as u32, &texture_set.bind_group, &[]);
+                    render_pass.set_bind_group((i + 1) as u32, &texture_set.bind_group.read().unwrap(), &[]);
                 }
                 if let Some(index_buffer) = &self.index_buffer {
                     render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
