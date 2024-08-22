@@ -199,11 +199,9 @@ impl<'a> Renderer<'a> {
 
         println!("Using backend {}", adapter.get_info().backend.to_str().to_uppercase());
 
-        let required_features = wgpu::Features::default();//wgpu::Features::CONSERVATIVE_RASTERIZATION;
-
         let (device, queue) = adapter.request_device(
             &wgpu::DeviceDescriptor {
-                required_features,
+                required_features: wgpu::Features::PUSH_CONSTANTS,
                 required_limits: wgpu::Limits::default(),
                 ..Default::default()
             },
@@ -538,29 +536,15 @@ impl<'a> Renderer<'a> {
 
             // SEND IT ALL IN
             
-            use glam::{Vec3, Mat3};
-            let player = world.entities.read_lock(world.player).unwrap();
-            let pos = player.pos;
-            let facing = player.facing;
-            // improved frustum culling can be done if the fov is taken into account and culling happens on the normals of the 4 planes of the camera's view
-            drop(player);
-            for handle in world.chunks.iter() {
-
-                // DO FRUSTUM CULLING
-                let chunk = world.chunks.read_lock(handle).unwrap();
-                if (Vec3::new(chunk.x, chunk.y, chunk.z) - pos).dot(facing) < -23.0 {
-                    //println!("skipped {} {} {}", chunk.x, chunk.y, chunk.z);
-                    continue;
-                }
-
-
+            // the .slice(..) will control frustum culling when the time comes
+            for (i, handle) in world.chunks.iter().enumerate() {
                 render_pass.set_pipeline(self.pipeline.as_ref().unwrap()); // 2.
                 render_pass.set_bind_group(0, &self.frame_data_bind_group, &[]);
                 for (i, texset) in self.texture_sets.iter().enumerate() {
                     render_pass.set_bind_group((i+1) as u32, &texset.bind_group, &[]);
                 }
 
-                
+                let chunk = world.chunks.read_lock(handle).unwrap();
                 render_pass.set_vertex_buffer(0, chunk.vertex_buffer.as_ref().expect("A vertex buffer was never pushed to the GPU!").slice(..));
                 render_pass.set_index_buffer(chunk.index_buffer.as_ref().expect("An index buffer was never pushed to the GPU!").slice(..), wgpu::IndexFormat::Uint32); // 1.
                 render_pass.draw_indexed(0..chunk.index_count, 0, 0..1); // 2.

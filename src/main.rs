@@ -254,9 +254,17 @@ impl ApplicationHandler for Game<'_> {
                         self.world.spawn_chunk_updates();
                         
                         if self.world.spawn_mesh_updates() {
+                            let t = std::time::Instant::now();
+                            //println!("Meshing...");
                             self.world.get_all_chunk_meshes(&renderer.device);
+                            //println!("{:?}, {:?}", verts, indices);
+                            println!("{:?}", t.elapsed());
+                            //println!("Pushing meshes to GPU...");
+                            //renderer.push_indices(indices, index_offsets);
+                            //println!("Done!");
+                            //self.world.need_mesh_update.lock().unwrap().clear();
+                            println!("{:?}", t.elapsed());
                         }
-                        //println!("through");
 
 
                         match renderer.render(&self.world) {
