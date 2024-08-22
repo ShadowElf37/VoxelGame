@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::sync::PoisonError;
+use std::time::Instant;
 use std::alloc::{alloc, dealloc, Layout, handle_alloc_error, alloc_zeroed};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::mem::{size_of, align_of};
@@ -161,12 +161,22 @@ impl<T> Arena<T> {
 
     // destroy the object at a certain index so that space can be used again (e.g. entity dies)
     pub fn destroy(&mut self, handle: ArenaHandle<T>) -> Result<(), ArenaError> {
+        if handle.index >= self.length {
+            return Err(ArenaError::BoundsExceeded);
+        }
         unsafe {
+            if !self.allocated.add(handle.index).read() {
+                return Err(ArenaError::DoesNotExist);
+            }
             self.memory.add(handle.index).drop_in_place();
             self.allocated.add(handle.index).write(false);
         }
         self.last_known_free = handle.index;
         self.count -= 1;
+
+        // Logging statement to indicate chunk destruction
+        // println!("Destroying chunk at index {}", handle.index);
+
         Ok(())
     }
 

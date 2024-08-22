@@ -1,12 +1,9 @@
-use std::sync::Arc;
 use crate::block::BlockID;
 use std::time::SystemTime;
 use std::sync::Mutex;
-use crate::camera;
 use crate::entity::*;
-use crate::geometry;
 use std::collections::VecDeque;
-use glam::f32::{Vec3};
+use glam::f32::Vec3;
 use crate::block;
 use crate::memarena::{Arena, ArenaHandle};
 use crate::chunk::{Chunk, CHUNK_SIZE_F};
@@ -122,6 +119,7 @@ impl World {
         self.need_generation_update.lock().unwrap().push_back(handle)
         //new_chunk.generate_planet();
     }
+
     // pub fn start_threads(&self) {
     //     // let chunks_mutex = Arc::new(Mutex::new(self.chunks));
     //     // let mesh_update = &self.need_mesh_update;
@@ -130,6 +128,7 @@ impl World {
     //     // self.thread_pool.install(||{Self::loop_checking_for_chunk_updates(tp, chunks_mutex.clone(), mesh_update, gen_update)});
     //     async_std::task::spawn(self.loop_checking_for_chunk_updates());
     // }
+
     pub fn spawn_chunk_updates(&self) {
         let mut gen_update_lock = self.need_generation_update.lock().unwrap();
         loop {
@@ -232,7 +231,7 @@ impl World {
             if (cx - px).abs() > RENDER_DISTANCE as i32 ||
                (cy - py).abs() > RENDER_DISTANCE as i32 ||
                (cz - pz).abs() > RENDER_DISTANCE as i32 {
-                //println!("Marking chunk at ({}, {}, {}) for unloading", cx, cy, cz);
+                println!("Marking chunk at ({}, {}, {}) for unloading", cx, cy, cz);
                 //println!("Player chunk coordinates: ({}, {}, {})", px, py, pz);
                 chunks_to_unload.push(handle);
             }
@@ -241,6 +240,8 @@ impl World {
         for handle in chunks_to_unload {
             self.chunks.destroy(handle).unwrap();
         }
+
+        let start_time = SystemTime::now();
 
         // GENERATE ANY CHUNKS THAT HAVEN'T BEEN LOADED YET
         for x in (px - RENDER_DISTANCE as i32)..(px + RENDER_DISTANCE as i32) {
@@ -252,6 +253,9 @@ impl World {
                 }
             }
         }
+
+        let end_time = SystemTime::now();
+        println!("Chunk generation took {:?}", end_time.duration_since(start_time).unwrap());
     }
 
     fn is_chunk_loaded(&self, x: i32, y: i32, z: i32) -> bool {
