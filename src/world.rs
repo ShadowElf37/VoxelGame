@@ -34,7 +34,7 @@ pub struct World {
 impl World {
     pub fn new() -> Self {
         let mut entities = Arena::<Arc<RwLock<Entity>>>::new(ENTITY_LIMIT);
-        let player = entities.create(Arc::new(RwLock::new(Entity::new(Vec3::new(0.0, 0.0, 32.0))))).unwrap();
+        let player = entities.create(Entity::new(Vec3::new(0.0, 0.0, 32.0))).unwrap();
         let thread_pool = Arc::new(rayon::ThreadPoolBuilder::new().build().unwrap());
         println!("Created thread pool with {} threads", thread_pool.current_num_threads());
         Self {
@@ -79,10 +79,14 @@ impl World {
         (ray_pos-midpoint_offset, last_ray_pos-midpoint_offset, block_id)
     }
 
-    pub fn get_chunk_at(&self, x: f32, y: f32, z: f32) -> Option<ArenaHandle<Chunk>> {
+    pub fn get_chunk_at(&self, x: f32, y: f32, z: f32) -> Option<ArenaHandle<Arc<RwLock<Chunk>>>> {
         for handle in self.chunks.iter() {
-            if self.chunks.read_lock(handle).unwrap().check_inside_me(x, y, z) {
-                return Some(handle)
+            if let Ok(chunk_guard) = self.chunks.read_lock(handle) {
+                let chunk = chunk_guard.read().unwrap(); // Dereference the Arc and RwLock
+                let chunk_read = chunk.read().unwrap(); // Store the result of chunk_guard.read().unwrap() in a separate variable
+                if chunk_read.check_inside_me(x, y, z) {
+                    return Some(handle);
+                }
             }
         }
         None
@@ -92,19 +96,29 @@ impl World {
         // returns 0 if the chunk isn't loaded
         match self.get_chunk_at(x, y, z) {
             Some(handle) => {
-                self.chunks.read_lock(handle).unwrap().get_block_id_at(x, y, z)
+                if let Ok(chunk_guard) = self.chunks.read_lock(handle) {
+                    let chunk = chunk_guard.read().unwrap(); // Dereference the Arc and RwLock
+                    let chunk_read = chunk.read().unwrap(); // Store the result of chunk_guard.read().unwrap() in a separate variable
+                    chunk_read.get_block_id_at(x, y, z)
+                } else {
+                    0
+                }
             }
-            None => 0
+            None => 0,
         }
     }
+
     pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) -> Option<()> {
         // returns None and noops if the chunk isn't loaded
         match self.get_chunk_at(x, y, z) {
             Some(handle) => {
-                self.chunks.write_lock(handle).unwrap().set_block_id_at(x, y, z, id);
-                self.queue_mesh_update(handle);
+                if let Ok(chunk_guard) = self.chunks.write_lock(handle) {
+                    let chunk = chunk_guard.write().unwrap(); // Dereference the Arc and RwLock
+                    chunk.write().unwrap().set_block_id_at(x, y, z, id);
+                    self.queue_mesh_update(handle);
+                }
             }
-            None => return None
+            None => return None,
         }
         Some(())
     }
@@ -125,9 +139,11 @@ impl World {
                 Some(handle) => {
                     let chunk = self.chunks.fetch_lock(handle).unwrap();
                     let mesh_update = &self.need_mesh_update;
-                    let mut wlock = chunk.write().unwrap();
-                    wlock.generate_planet();
-                    drop(wlock);
+                    {
+                        let wlock = chunk.write().unwrap();
+                        let mut chunk_write = wlock.write().unwrap();
+                        chunk_write.generate_planet();
+                    } // The write lock is dropped here
                     mesh_update.lock().unwrap().push_back(handle);
                 }
             }
@@ -143,11 +159,11 @@ impl World {
                 Some(handle) => {
                     got_any_updates = true;
                     let chunk = self.chunks.fetch_lock(handle).unwrap();
+                    let chunk_write = chunk.write().unwrap();
                     let block_properties = &self.block_properties;
                     let tp = &self.thread_pool;
-                    let mut wlock = chunk.write().unwrap();
-                    wlock.make_mesh(block_properties, tp);
-                    wlock.ready_to_display = true;
+                    chunk_write.write().unwrap().make_mesh(block_properties, tp);
+                    chunk_write.write().unwrap().ready_to_display = true;
                 }
             }
         }
@@ -159,17 +175,20 @@ impl World {
         self.queue_chunk_update(handle);
     }
 
-    pub fn generate_all_chunks_around_player(&mut self) {
+    pub fn generate_all_chunks_around_player(&self) {
         let (px, py, pz) = self.get_player_chunk_coords();
-        let chunk_coords: Vec<(i32, i32, i32)> = (px - RENDER_DISTANCE as i32..px + RENDER_DISTANCE as i32)
-            .flat_map(|x| (py - RENDER_DISTANCE as i32..py + RENDER_DISTANCE as i32)
-                .flat_map(move |y| (pz - RENDER_DISTANCE as i32..pz + RENDER_DISTANCE as i32)
+        let chunk_coords: Vec<(i32, i32, i32)> = ((px - RENDER_DISTANCE as i32)..(px + RENDER_DISTANCE as i32))
+            .flat_map(|x| ((py - RENDER_DISTANCE as i32)..(py + RENDER_DISTANCE as i32))
+                .flat_map(move |y| ((pz - RENDER_DISTANCE as i32)..(pz + RENDER_DISTANCE as i32))
                     .map(move |z| (x, y, z))))
             .collect();
 
+        let world_arc = Arc::new(self);
+
         chunk_coords.par_iter().for_each(|&(x, y, z)| {
-            if !self.is_chunk_loaded(x, y, z) {
-                self.generate_chunk(x as f32, y as f32, z as f32);
+            let mut world = world_arc.clone();
+            if !world.is_chunk_loaded(x, y, z) {
+                world.generate_chunk(x as f32, y as f32, z as f32);
             }
         });
     }
@@ -177,9 +196,9 @@ impl World {
     pub fn get_all_chunk_meshes(&mut self, device: &wgpu::Device) {
         for handle in self.chunks.iter() {
             let chunk = self.chunks.fetch_lock(handle).unwrap();
-            if chunk.read().unwrap().vertex_buffer.is_none() {
+            if chunk.read().unwrap().read().unwrap().vertex_buffer.is_none() {
                 self.thread_pool.install(||{
-                    chunk.write().unwrap().make_vertex_buffer(device);
+                    chunk.write().unwrap().write().unwrap().make_vertex_buffer(device);
                 });
             }
         }
@@ -203,10 +222,10 @@ impl World {
 
         let start_time = SystemTime::now();
 
-        let chunks_to_unload: Vec<ArenaHandle<Chunk>> = self.chunks.iter()
+        let chunks_to_unload: Vec<ArenaHandle<Arc<RwLock<Chunk>>>> = self.chunks.iter()
             .filter(|handle| {
                 let chunk = self.chunks.read_lock(*handle).unwrap();
-                let (cx, cy, cz) = chunk.integer_chunk_coords();
+                let (cx, cy, cz) = chunk.read().unwrap().integer_chunk_coords();
                 let dist = ((cx - px).pow(2) + (cy - py).pow(2) + (cz - pz).pow(2)) as f32;
                 dist > (RENDER_DISTANCE as f32).powi(2)
             })
@@ -222,9 +241,11 @@ impl World {
                     .map(move |z| (x, y, z))))
             .collect();
 
-        chunk_coords.par_iter().for_each(|&(x, y, z)| {
-            if !self.is_chunk_loaded(x, y, z) {
-                self.generate_chunk(x as f32, y as f32, z as f32);
+        let world_arc = Arc::new(World::new());
+        let world: Arc<World> = Arc::clone(&world_arc);
+        chunk_coords.into_par_iter().for_each(|(x, y, z)| {
+            if !world.is_chunk_loaded(x, y, z) {
+                world.generate_chunk(x as f32, y as f32, z as f32);
             }
         });
 
@@ -235,61 +256,79 @@ impl World {
     fn is_chunk_loaded(&self, x: i32, y: i32, z: i32) -> bool {
         self.chunks.iter().any(|handle| {
             let chunk = self.chunks.read_lock(handle).unwrap();
-            chunk.integer_chunk_coords() == (x, y, z)
+            let result = chunk.read().unwrap().read().unwrap().integer_chunk_coords() == (x, y, z);
+            std::mem::drop(chunk);
+            result
         })
     }
 
-    fn do_physics(&self, dt: f32, e: ArenaHandle<Entity>) {
-        let mut e = self.entities.write_lock(e).unwrap();
+    fn do_physics(&self, dt: f32, e: ArenaHandle<Arc<RwLock<Entity>>>) {
+        let e = self.entities.write_lock(e).unwrap();
         let mut dx = Vec3::ZERO;
         let mut dv = Vec3::ZERO;
-        let (x, y, z) = (e.pos.x, e.pos.y, e.pos.z);
+        let (x, y, z) = {
+            let e = e.read().unwrap();
+            let e_inner = e.read().unwrap();
+            (e_inner.pos.x, e_inner.pos.y, e_inner.pos.z)
+        };
 
-        if e.vel.z.abs() > 100.0 {
-            e.pos = Vec3::new(0.0, 0.0, 10.0);
-            e.vel = Vec3::ZERO;
-            e.facing = Vec3::new(0.0, 1.0, 0.0);
+        if e.read().unwrap().read().unwrap().vel.z.abs() > 100.0 {
+            e.read().unwrap().read().unwrap().pos = Vec3::new(0.0, 0.0, 10.0);
+            e.read().unwrap().read().unwrap().vel = Vec3::ZERO;
+            e.read().unwrap().read().unwrap().facing = Vec3::new(0.0, 1.0, 0.0);
         }
 
         //let entity_chunk = self.get_chunk_at(x, y, z);
 
-        e.update_time_independent_acceleration();
+        let entity = e.read().unwrap();
+        let inner_entity = entity.read().unwrap();
+        inner_entity.update_time_independent_acceleration();
 
         if true { // !e.in_air {
-            let decel = e.vel.with_z(0.0)*e.acc_rate/e.move_speed;
-            e.acc -= decel;
+            let decel = e.read().unwrap().read().unwrap().vel.with_z(0.0)*e.read().unwrap().read().unwrap().acc_rate/e.read().unwrap().read().unwrap().move_speed;
+            if let Ok(entity_guard) = e.write() {
+                entity_guard.acc -= decel;
+            }
         }
-        dv += e.acc * dt;
-        dx += (e.vel+dv) * dt;
+        dv += e.read().unwrap().read().unwrap().acc * dt;
+        dx += (e.read().unwrap().read().unwrap().vel+dv) * dt;
         
         //let dx_dir = dx.normalize()*0.1;
 
         // this will break for high dx (high v)
-        let future_pos = e.pos+dx+dx.signum()*Vec3::new(e.width, e.width, 0.0);
+        let future_pos = e.read().unwrap().read().unwrap().pos+dx+dx.signum()*Vec3::new(e.read().unwrap().read().unwrap().width, e.read().unwrap().read().unwrap().width, 0.0);
         let (fx, fy, fz) = (future_pos.x, future_pos.y, future_pos.z);
 
         if self.block_properties.by_id(self.get_block_id_at(fx, y, z)).solid || self.block_properties.by_id(self.get_block_id_at(fx, y, z+1.0)).solid {
             dx = dx.with_x(0.0);
-            dv = dv.with_x(-e.vel.x);
+            dv = dv.with_x(-e.read().unwrap().read().unwrap().vel.x);
         }
         if self.block_properties.by_id(self.get_block_id_at(x, fy, z)).solid || self.block_properties.by_id(self.get_block_id_at(x, fy, z+1.0)).solid {
             dx = dx.with_y(0.0);
-            dv = dv.with_y(-e.vel.y);
+            dv = dv.with_y(-e.read().unwrap().read().unwrap().vel.y);
         }
-        if self.block_properties.by_id(self.get_block_id_at(x, y, fz)).solid {
-            dx = dx.with_z(0.0);
-            dv = dv.with_z(-e.vel.z);
-            e.in_air = false;
-        } else {
-            e.in_air = true;
+        let mut entity_guard = None;
+        if let Ok(guard) = e.write() {
+            entity_guard = Some(guard);
         }
-        if self.block_properties.by_id(self.get_block_id_at(x, y, fz+e.height)).solid {
-            dx = dx.with_z(0.0);
-            dv = dv.with_z(-e.vel.z);
+        if let Some(entity_guard) = entity_guard {
+            let mut entity = entity_guard.write().unwrap(); // Acquire a mutable reference to the inner Entity struct
+        
+            if self.block_properties.by_id(self.get_block_id_at(x, y, fz)).solid {
+                dx = dx.with_z(0.0);
+                dv = dv.with_z(-entity.vel.z); // Access the field on the Entity
+                entity.in_air = false; // Access the field on the Entity
+            } else {
+                entity.in_air = true; // Access the field on the Entity
+            }
+            if self.block_properties.by_id(self.get_block_id_at(x, y, fz + entity.height)).solid {
+                dx = dx.with_z(0.0);
+                dv = dv.with_z(-entity.vel.z); // Access the field on the Entity
+            }
+        
+            entity.vel += dv; // Access the field on the Entity
+            entity.pos += dx; // Access the field on the Entity
         }
-
-        e.vel += dv;
-        e.pos += dx;
     }
 
     pub fn physics_step(&mut self, dt: f32) {
