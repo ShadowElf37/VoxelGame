@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use glam::Vec3;
 use winit::{
     application::ApplicationHandler,
     event::{DeviceEvent, DeviceId, ElementState, KeyEvent, WindowEvent},

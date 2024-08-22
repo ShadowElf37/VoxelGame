@@ -7,7 +7,8 @@ mod block_proto_defaults {
     pub fn r#true () -> bool {true}
     pub fn tex_face_map_zeros () -> [usize; 6] {[0, 0, 0, 0, 0, 0]}
 }
-#[derive(Deserialize, Debug)]
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct BlockProto {
     pub name: String,
     pub textures: Vec<String>,
@@ -25,6 +26,7 @@ struct BlockProtoArrayTableWrapper {
     blocks: Vec<BlockProto>
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockProtoSet {
     blocks: Vec<BlockProto>,
 }

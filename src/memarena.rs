@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
-use std::alloc::{dealloc, Layout, handle_alloc_error, alloc_zeroed};
-use std::sync::{Arc, RwLock};
-use std::mem::{size_of, align_of};
+use std::sync::{Arc, RwLock, Mutex};
 
 #[derive(Debug)]
 pub enum ArenaError {
@@ -35,12 +33,10 @@ unsafe impl<T> Sync for ArenaHandle<T> {}
 
 pub struct Arena<T> {
     items: Vec<Option<Arc<RwLock<T>>>>,
-    allocated: *mut bool,
+    allocated: Arc<Mutex<Vec<bool>>>,
     pub length: usize,
     pub last_known_free: usize,
     pub count: usize,
- 
-    layout_allocated: Layout,
 }
 
 impl<T> std::fmt::Debug for Arena<T> where T: std::fmt::Debug {
@@ -51,10 +47,17 @@ impl<T> std::fmt::Debug for Arena<T> where T: std::fmt::Debug {
     }
 }
 
-impl<T> Drop for Arena<T> {
-    fn drop(&mut self) {
-        unsafe {
-            dealloc(self.allocated as *mut u8, self.layout_allocated);
+impl<T> Clone for Arena<T> 
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Arena {
+            items: self.items.clone(),
+            allocated: Arc::new(Mutex::new(self.allocated.lock().unwrap().clone())),
+            length: self.length,
+            last_known_free: self.last_known_free,
+            count: self.count,
         }
     }
 }
@@ -62,26 +65,13 @@ impl<T> Drop for Arena<T> {
 impl<T> Arena<T> {
     // length in number of T it can hold
     pub fn new(length: usize) -> Self {
-        let layout_allocated = Layout::from_size_align(size_of::<bool>()*length, align_of::<bool>()).unwrap();
-
-        println!("Arena allocation: {:?} entities", layout_allocated.size());
-
-        unsafe {
-            let ptr_allocated = alloc_zeroed(layout_allocated);
-
-            if ptr_allocated.is_null() {
-                handle_alloc_error(layout_allocated);
-            }
-
-            Arena {
-                items: vec![None; length],
-                allocated: ptr_allocated as *mut bool,
-                length,
-                last_known_free: 0,
-                count: 0,
-
-                layout_allocated,
-            }
+        let allocated = vec![false; length];
+        Arena {
+            items: vec![None; length],
+            allocated: Arc::new(Mutex::new(allocated)),
+            length,
+            last_known_free: 0,
+            count: 0,
         }
     }
 
@@ -89,7 +79,7 @@ impl<T> Arena<T> {
         if index >= self.length {
             return Err(ArenaError::BoundsExceeded)
         }
-        if !unsafe{*self.allocated.add(index)} {
+        if !self.allocated.lock().unwrap()[index] {
             return Err(ArenaError::DoesNotExist)
         }
         Ok(ArenaHandle::new(index))
@@ -103,7 +93,7 @@ impl<T> Arena<T> {
             if i == length {
                 panic!("Arena::from_iter is about to segfault because you didn't specify a high enough length")
             }
-            unsafe {arena.overwrite(i, Arc::new(RwLock::new(item)));}
+            arena.overwrite(i, Arc::new(RwLock::new(item)));
             arena.count += 1;
         }
         arena
@@ -114,21 +104,19 @@ impl<T> Arena<T> {
     }
 
     // writes an object to an index regardless of allocation status. does no bounds checking. use with care.
-    unsafe fn overwrite(&mut self, index: usize, obj: Arc<RwLock<T>>) {
+    fn overwrite(&mut self, index: usize, obj: Arc<RwLock<T>>) {
         self.items[index] = Some(obj);
-        self.allocated.add(index).write(true);
+        self.allocated.lock().unwrap()[index] = true;
     }
 
     // create an object at the next available space - if no space is free, sad!
     pub fn create(&mut self, obj: T) -> Result<ArenaHandle<T>, ArenaError> {
         for i in self.last_known_free..self.length {
-            if unsafe {self.allocated.add(i).read()} { continue; } // already allocated to that slot, keep going
+            if self.allocated.lock().unwrap()[i] { continue; } // already allocated to that slot, keep going
 
             // we found one that was free!
-            unsafe {
-                self.items[i] = Some(Arc::new(RwLock::new(obj)));
-                self.allocated.add(i).write(true);
-            }
+            self.items[i] = Some(Arc::new(RwLock::new(obj)));
+            self.allocated.lock().unwrap()[i] = true;
 
             self.count += 1;
             self.last_known_free += 1;
@@ -142,13 +130,11 @@ impl<T> Arena<T> {
         if handle.index >= self.length {
             return Err(ArenaError::BoundsExceeded);
         }
-        unsafe {
-            if !self.allocated.add(handle.index).read() {
-                return Err(ArenaError::DoesNotExist);
-            }
-            self.items[handle.index] = None;
-            self.allocated.add(handle.index).write(false);
+        if !self.allocated.lock().unwrap()[handle.index] {
+            return Err(ArenaError::DoesNotExist);
         }
+        self.items[handle.index] = None;
+        self.allocated.lock().unwrap()[handle.index] = false;
         self.last_known_free = handle.index;
         self.count -= 1;
 
@@ -193,48 +179,3 @@ impl<'a, T> Iterator for ArenaIterator<'a, T> {
         }
     }
 }
-
-/*
-#[derive(Debug)]
-struct Test<'a> {
-    a: &'a str,
-    b: i32,
-}
-
-
-
-#[test]
-fn main() {
-    let t = Test {a: "hello", b:1};
-    //std::fmt::Debug::fmt(t);
-
-    let mut a = Arena::<Test>::new(3);
-    a.create(Test {
-        a: "hello world 1",
-        b: -5,
-    }).unwrap();
-    a.create(Test {
-        a: "hello world 2",
-        b: -3,
-    }).unwrap();
-    a.create(Test {
-        a: "hello world 3",
-        b: -1,
-    }).unwrap();
-
-    a.destroy(0);
-    a.create(Test {
-        a: "hello world 8",
-        b: 100,
-    }).unwrap();
-
-    a.obtain(2).unwrap().write().unwrap().b = 7;
-    a.destroy(1);
-
-    for obj in a.iter() {
-        println!("{:?}", obj);
-    }
-
-    println!("{:?}", a);
-}
-*/

@@ -31,6 +31,23 @@ pub struct World {
     thread_pool: Arc<rayon::ThreadPool>,
 }
 
+impl Clone for World {
+    fn clone(&self) -> Self {
+        World {
+            chunks: self.chunks.clone(),
+            entities: self.entities.clone(),
+            block_properties: self.block_properties.clone(),
+            spawn_point: self.spawn_point.clone(),
+            sky_color: self.sky_color.clone(),
+            player: self.player.clone(),
+            last_player_chunk_coords: self.last_player_chunk_coords.clone(),
+            need_mesh_update: Mutex::new(self.need_mesh_update.lock().unwrap().clone()),
+            need_generation_update: Mutex::new(self.need_generation_update.lock().unwrap().clone()),
+            thread_pool: self.thread_pool.clone(),
+        }
+    }
+}
+
 impl World {
     pub fn new() -> Self {
         let mut entities = Arena::<Arc<RwLock<Entity>>>::new(ENTITY_LIMIT);
@@ -182,14 +199,18 @@ impl World {
                 .flat_map(move |y| ((pz - RENDER_DISTANCE as i32)..(pz + RENDER_DISTANCE as i32))
                     .map(move |z| (x, y, z))))
             .collect();
-
-        let world_arc = Arc::new(self);
-
-        chunk_coords.par_iter().for_each(|&(x, y, z)| {
-            let mut world = world_arc.clone();
-            if !world.is_chunk_loaded(x, y, z) {
-                world.generate_chunk(x as f32, y as f32, z as f32);
-            }
+    
+        let world_arc = Arc::new(RwLock::new(self.clone())); // Use RwLock for thread-safe access
+        let thread_pool = self.thread_pool.clone();
+        
+        thread_pool.install(|| {
+            chunk_coords.into_par_iter().for_each(move |(x, y, z)| {
+                let world = world_arc.clone();
+                let mut world = world.write().unwrap();
+                if !world.is_chunk_loaded(x, y, z) {
+                    world.generate_chunk(x as f32, y as f32, z as f32);
+                }
+            });
         });
     }
     
@@ -202,10 +223,14 @@ impl World {
                 });
             }
         }
-    }
-
+    }    
     fn get_player_chunk_coords(&self) -> (i32, i32, i32) {
-        let player_pos = self.entities.read_lock(self.player).unwrap().pos;
+        let player_pos = {
+            let player_entity = self.entities.read_lock(self.player).unwrap();
+            let player = player_entity.read().unwrap();
+            let player_inner = player.read().unwrap();
+            player_inner.pos
+        };
         (
             (player_pos.x / CHUNK_SIZE_F).floor() as i32,
             (player_pos.y / CHUNK_SIZE_F).floor() as i32,
@@ -225,7 +250,7 @@ impl World {
         let chunks_to_unload: Vec<ArenaHandle<Arc<RwLock<Chunk>>>> = self.chunks.iter()
             .filter(|handle| {
                 let chunk = self.chunks.read_lock(*handle).unwrap();
-                let (cx, cy, cz) = chunk.read().unwrap().integer_chunk_coords();
+                let (cx, cy, cz) = chunk.read().unwrap().read().unwrap().integer_chunk_coords();
                 let dist = ((cx - px).pow(2) + (cy - py).pow(2) + (cz - pz).pow(2)) as f32;
                 dist > (RENDER_DISTANCE as f32).powi(2)
             })
@@ -241,9 +266,10 @@ impl World {
                     .map(move |z| (x, y, z))))
             .collect();
 
-        let world_arc = Arc::new(World::new());
-        let world: Arc<World> = Arc::clone(&world_arc);
+        let world_arc = Arc::new(RwLock::new(self.clone())); // Use RwLock for thread-safe access
         chunk_coords.into_par_iter().for_each(|(x, y, z)| {
+            let world = world_arc.clone();
+            let mut world = world.write().unwrap();
             if !world.is_chunk_loaded(x, y, z) {
                 world.generate_chunk(x as f32, y as f32, z as f32);
             }
@@ -267,27 +293,33 @@ impl World {
         let mut dx = Vec3::ZERO;
         let mut dv = Vec3::ZERO;
         let (x, y, z) = {
-            let e = e.read().unwrap();
             let e_inner = e.read().unwrap();
-            (e_inner.pos.x, e_inner.pos.y, e_inner.pos.z)
+            let entity = e_inner.read().unwrap();
+            (entity.pos.x, entity.pos.y, entity.pos.z)
         };
 
         if e.read().unwrap().read().unwrap().vel.z.abs() > 100.0 {
-            e.read().unwrap().read().unwrap().pos = Vec3::new(0.0, 0.0, 10.0);
-            e.read().unwrap().read().unwrap().vel = Vec3::ZERO;
-            e.read().unwrap().read().unwrap().facing = Vec3::new(0.0, 1.0, 0.0);
+            if let Ok(entity_guard) = e.write() {
+                let mut entity = entity_guard.write().unwrap(); // Acquire a mutable reference to the inner Entity struct
+                entity.pos = Vec3::new(0.0, 0.0, 10.0); // Access the field on the Entity
+            }
+            (*e.write().unwrap().write().unwrap()).vel = Vec3::ZERO;
+            if let Ok(entity_guard) = e.write() {
+                let mut entity = entity_guard.write().unwrap();
+                entity.facing = Vec3::new(0.0, 1.0, 0.0);
+            }
         }
 
         //let entity_chunk = self.get_chunk_at(x, y, z);
 
         let entity = e.read().unwrap();
-        let inner_entity = entity.read().unwrap();
+        let mut inner_entity = entity.write().unwrap();
         inner_entity.update_time_independent_acceleration();
 
         if true { // !e.in_air {
             let decel = e.read().unwrap().read().unwrap().vel.with_z(0.0)*e.read().unwrap().read().unwrap().acc_rate/e.read().unwrap().read().unwrap().move_speed;
             if let Ok(entity_guard) = e.write() {
-                entity_guard.acc -= decel;
+                entity_guard.write().unwrap().acc -= decel;
             }
         }
         dv += e.read().unwrap().read().unwrap().acc * dt;
