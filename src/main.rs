@@ -20,6 +20,8 @@ mod texturing;
 mod block;
 mod chunk;
 mod memarena;
+mod chunkset;
+mod memblock;
 
 #[derive(Default)]
 pub struct GameState {
@@ -107,8 +109,8 @@ impl ApplicationHandler for Game<'_> {
         let mut renderer = pollster::block_on(renderer::Renderer::new(self.window.clone().unwrap()));
         renderer.load_texture_set(self.world.block_properties.collect_textures());
         
-        println!("Generating chunks... ({:.2?})", t.elapsed());
-        self.world.generate_all_chunks_around_player();
+        // println!("Generating chunks... ({:.2?})", t.elapsed());
+        // self.world.generate_all_chunks_around_player();
 
         println!("Done! ({:.2?})", t.elapsed());
 
@@ -155,12 +157,12 @@ impl ApplicationHandler for Game<'_> {
                             let (destroy_location, place_location, _) = self.world.entities.read_lock(self.world.player).unwrap().get_block_looking_at(&self.world);
                             match button {
                                 winit::event::MouseButton::Left => {
-                                    self.world.set_block_id_at(destroy_location.x, destroy_location.y, destroy_location.z, 0);
+                                    self.world.set_block_id_at(destroy_location, 0);
                                 },
                                 winit::event::MouseButton::Right => {
                                     let player_pos = self.world.entities.read_lock(self.world.player).unwrap().pos.floor();
                                     if place_location != player_pos && place_location != player_pos + Vec3::Z{
-                                        self.world.set_block_id_at(place_location.x, place_location.y, place_location.z, 6);
+                                        self.world.set_block_id_at(place_location, 6);
                                     }
                                 },
                                 winit::event::MouseButton::Middle => (),
@@ -257,13 +259,7 @@ impl ApplicationHandler for Game<'_> {
 
                         self.world.physics_step(self.clock.tick_time);
 
-                        self.world.update_loaded_chunks();
-                        self.world.spawn_chunk_updates();
-                        if self.world.spawn_mesh_updates() {
-                            self.world.get_all_chunk_meshes(&renderer.device);
-                        }
-                        //println!("through");
-
+                        self.world.update_loaded_chunks(&renderer.device);
 
                         match renderer.render(&self.world) {
                             Ok(_) => {}

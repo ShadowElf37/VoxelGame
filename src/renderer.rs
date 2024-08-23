@@ -544,27 +544,40 @@ impl<'a> Renderer<'a> {
             let facing = player.facing;
             // improved frustum culling can be done if the fov is taken into account and culling happens on the normals of the 4 planes of the camera's view
             drop(player);
-            for handle in world.chunks.iter() {
+            let mut j = 0;
+            for lock in world.chunks.iter() {
+                match lock.try_read() {
+                    Ok(chunk) => {
 
-                // DO FRUSTUM CULLING
-                let chunk = world.chunks.read_lock(handle).unwrap();
-                if (Vec3::new(chunk.pos.x, chunk.pos.y, chunk.pos.z) - pos).dot(facing) < -23.0 {
-                    //println!("skipped {} {} {}", chunk.x, chunk.y, chunk.z);
-                    continue;
+                        //println!("{} {}", chunk.ready_to_display, chunk.pos);
+                        if !chunk.ready_to_display {
+                            continue;
+                        }
+                        j += 1;
+                        // DO FRUSTUM CULLING
+                        if (Vec3::new(chunk.pos.x, chunk.pos.y, chunk.pos.z) - pos).dot(facing) < -23.0 {
+                            //println!("skipped {} {} {}", chunk.x, chunk.y, chunk.z);
+                            continue;
+                        }
+
+
+                        render_pass.set_pipeline(self.pipeline.as_ref().unwrap()); // 2.
+                        render_pass.set_bind_group(0, &self.frame_data_bind_group, &[]);
+                        for (i, texset) in self.texture_sets.iter().enumerate() {
+                            render_pass.set_bind_group((i+1) as u32, &texset.bind_group, &[]);
+                        }
+
+                        
+                        render_pass.set_vertex_buffer(0, chunk.vertex_buffer.as_ref().expect("A vertex buffer was never pushed to the GPU!").slice(..));
+                        render_pass.set_index_buffer(chunk.index_buffer.as_ref().expect("An index buffer was never pushed to the GPU!").slice(..), wgpu::IndexFormat::Uint32); // 1.
+                        render_pass.draw_indexed(0..chunk.index_count, 0, 0..1); // 2.
+
+                    },
+                    Err(_) => continue,
                 }
-
-
-                render_pass.set_pipeline(self.pipeline.as_ref().unwrap()); // 2.
-                render_pass.set_bind_group(0, &self.frame_data_bind_group, &[]);
-                for (i, texset) in self.texture_sets.iter().enumerate() {
-                    render_pass.set_bind_group((i+1) as u32, &texset.bind_group, &[]);
-                }
-
                 
-                render_pass.set_vertex_buffer(0, chunk.vertex_buffer.as_ref().expect("A vertex buffer was never pushed to the GPU!").slice(..));
-                render_pass.set_index_buffer(chunk.index_buffer.as_ref().expect("An index buffer was never pushed to the GPU!").slice(..), wgpu::IndexFormat::Uint32); // 1.
-                render_pass.draw_indexed(0..chunk.index_count, 0, 0..1); // 2.
             }
+            println!("Rendered {} chunks", j);
 
             self.text_manager.render(&mut render_pass);
         }

@@ -68,7 +68,7 @@ impl Entity {
             gravity: 9.8*2.5,
             desired_movement: NO_MOVEMENT,
 
-            flying: true,
+            flying: false,
             in_air: true,
         }
     }

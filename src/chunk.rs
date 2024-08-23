@@ -1,3 +1,4 @@
+use std::sync::RwLock;
 use std::sync::Mutex;
 use std::sync::Arc;
 use crate::block::{BlockProtoSet, BlockID};
@@ -10,6 +11,7 @@ use glam::Vec3;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;
 pub const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
+
 
 type ChunkArray<T> = [T; CHUNK_VOLUME];
 
@@ -29,7 +31,7 @@ impl<'a> Chunk {
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         //stacker::maybe_grow(std::mem::size_of::<Self>(), std::mem::size_of::<Self>(), || {
         Self {
-            pos: Vec3::new(x, y, z),
+            pos: Vec3::new(x, y, z), // in world coords
             ids_array: [0; CHUNK_VOLUME],
             visibility_array: [1; CHUNK_VOLUME],
             mesh: vec![],
@@ -41,28 +43,20 @@ impl<'a> Chunk {
         //})
     }
 
-    pub fn integer_chunk_coords(&self) -> (i32, i32, i32) {
-        (
-            (self.pos.x / CHUNK_SIZE_F).floor() as i32,
-            (self.pos.y / CHUNK_SIZE_F).floor() as i32,
-            (self.pos.z / CHUNK_SIZE_F).floor() as i32,
-        )
-    }
-
     pub fn check_inside_me(&self, x: f32, y: f32, z: f32) -> bool {
         self.pos.x + CHUNK_SIZE_F > x && x >= self.pos.x && 
         self.pos.y + CHUNK_SIZE_F > y && y >= self.pos.y && 
         self.pos.z + CHUNK_SIZE_F > z && z >= self.pos.z
     }
 
-    pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) {
-        let (chunk_x, chunk_y, chunk_z) = (x.floor()-self.pos.x, y.floor()-self.pos.y, z.floor()-self.pos.z);
+    pub fn set_block_id_at(&mut self, pos: Vec3, id: BlockID) {
+        let (chunk_x, chunk_y, chunk_z) = (pos.floor()-self.pos).into();
         let (chunk_i, chunk_j, chunk_k) = (chunk_x as usize, chunk_y as usize, chunk_z as usize);
         Self::get_view_mut(&mut self.ids_array)[(chunk_i, chunk_j, chunk_k)] = id;
     }
 
-    pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
-        let (chunk_x, chunk_y, chunk_z) = (x.floor()-self.pos.x, y.floor()-self.pos.y, z.floor()-self.pos.z);
+    pub fn get_block_id_at(&self, pos: Vec3) -> BlockID {
+        let (chunk_x, chunk_y, chunk_z) = (pos.floor()-self.pos).into();
         let (chunk_i, chunk_j, chunk_k) = (chunk_x as usize, chunk_y as usize, chunk_z as usize);
         Self::get_view(&self.ids_array)[(chunk_i, chunk_j, chunk_k)]
     }
