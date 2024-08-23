@@ -1,3 +1,6 @@
+use ndarray::NdIndex;
+use std::mem::MaybeUninit;
+use std::sync::RwLock;
 use std::sync::Arc;
 use crate::block::BlockID;
 use std::time::SystemTime;
@@ -10,15 +13,70 @@ use glam::f32::{Vec3};
 use crate::block;
 use crate::memarena::{Arena, ArenaHandle};
 use crate::chunk::{Chunk, CHUNK_SIZE_F};
+use ndarray::prelude::*;
+use ndarray::{Array3};
+
 
 const ENTITY_LIMIT: usize = 128;
 pub const RENDER_DISTANCE: usize = 10;
-pub const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
 
-const LOAD_RADIUS: f32 = 2.0;
+
+struct ChunkSet {
+    pub chunks: Array3<MaybeUninit<RwLock<Chunk>>>,
+    pub chunks_loaded: RwLock<Array3<bool>>,
+    pub center: (isize, isize, isize),
+    pub render_distance: isize,
+}
+
+impl ChunkSet {
+    pub fn new(center: (isize, isize, isize), render_distance: usize) -> Self {
+        let arr_length = 2*render_distance+1;
+        let arr_vol = arr_length*arr_length*arr_length;
+        let arr_shape = (arr_length, arr_length, arr_length).f();
+        Self {
+            chunks: Array3::uninit(arr_shape),
+            chunks_loaded: RwLock::new(Array3::from_shape_vec(arr_shape, vec![false; arr_vol]).unwrap()),
+            center,
+            render_distance: render_distance.try_into().unwrap(),
+        }
+    }
+    pub fn world_to_chunk_coords(pos: Vec3) -> (isize, isize, isize) {
+        (
+            (pos.x / CHUNK_SIZE_F).floor() as isize,
+            (pos.y / CHUNK_SIZE_F).floor() as isize,
+            (pos.z / CHUNK_SIZE_F).floor() as isize,
+        )
+    }
+    pub fn chunk_coord_to_arr_index(&self, coord: (isize, isize, isize)) -> [usize; 3] {
+
+    }
+    pub fn check_loaded(&self, chunk_coord: (isize, isize, isize)) -> bool {
+        if
+        chunk_coord.0 <= self.center.0 + self.render_distance &&
+        chunk_coord.0 >= self.center.0 - self.render_distance &&
+        chunk_coord.1 <= self.center.1 + self.render_distance &&
+        chunk_coord.1 >= self.center.1 - self.render_distance &&
+        chunk_coord.2 <= self.center.2 + self.render_distance &&
+        chunk_coord.2 >= self.center.2 - self.render_distance {
+            return self.chunks_loaded.read().unwrap()[self.chunk_coord_to_arr_index(chunk_coord)];
+        }
+        return false;
+
+        
+    }
+    pub fn get_chunk_at(&self, pos: Vec3) -> Option<&RwLock<Chunk>> {
+        let c = self.chunk_coord_to_arr_index(Self::world_to_chunk_coords(pos));
+        if self.chunks_loaded.read().unwrap()[c] {
+            return unsafe {Some(self.chunks[c].clone().assume_init())};
+        }
+        None
+    }
+}
+
 
 pub struct World {
-    pub chunks: Arena<Chunk>,
+    pub chunks: ChunkSet,
+
     pub entities: Arena<Entity>,
 
     pub block_properties: block::BlockProtoSet,
@@ -35,13 +93,15 @@ pub struct World {
 
 impl World {
     pub fn new() -> Self {
+        let spawn_pos = Vec3::new(0.0, 0.0, 32.0);
         let mut entities = Arena::<Entity>::new(ENTITY_LIMIT);
-        let player = entities.create(Entity::new(Vec3::new(0.0, 0.0, 32.0))).unwrap();
+        let player = entities.create(Entity::new(spawn_pos)).unwrap();
         let thread_pool = rayon::ThreadPoolBuilder::new().build().unwrap();
         println!("Created threadpool with {} threads", thread_pool.current_num_threads());
         return Self {
             // render distance changing is easy. `chunks = Arena::from_iter(chunks.iter())`. then, ensure Arena::drop() works.
-            chunks: Arena::<Chunk>::new(2*RENDER_VOLUME),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
+            
+            chunks: ChunkSet::new((0, 0, 32), RENDER_DISTANCE),
             entities,
 
             block_properties: block::BlockProtoSet::from_toml("config/blocks.toml"),
@@ -85,14 +145,7 @@ impl World {
         (ray_pos-midpoint_offset, last_ray_pos-midpoint_offset, block_id)
     }
 
-    pub fn get_chunk_at(&self, x: f32, y: f32, z: f32) -> Option<ArenaHandle<Chunk>> {
-        for handle in self.chunks.iter() {
-            if self.chunks.read_lock(handle).unwrap().check_inside_me(x, y, z) {
-                return Some(handle)
-            }
-        }
-        None
-    }
+    
 
     pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
         // returns 0 if the chunk isn't loaded
@@ -197,9 +250,9 @@ impl World {
         for handle in self.chunks.iter() {
             let chunk = self.chunks.fetch_lock(handle).unwrap();
             if chunk.read().unwrap().vertex_buffer.is_none() {
-                self.thread_pool.install(||{
+                //self.thread_pool.install(||{
                     chunk.write().unwrap().make_vertex_buffer(device);
-                });
+                //});
             }
         }
     }
@@ -238,20 +291,25 @@ impl World {
             }
         }
     
+
+        println!("Destroyed {} chunks", chunks_to_unload.len());
         for handle in chunks_to_unload {
             self.chunks.destroy(handle).unwrap();
         }
 
         // GENERATE ANY CHUNKS THAT HAVEN'T BEEN LOADED YET
+        let mut i = 0;
         for x in (px - RENDER_DISTANCE as i32)..(px + RENDER_DISTANCE as i32) {
             for y in (py - RENDER_DISTANCE as i32)..(py + RENDER_DISTANCE as i32) {
                 for z in (pz - RENDER_DISTANCE as i32)..(pz + RENDER_DISTANCE as i32) {
                     if !self.is_chunk_loaded(x, y, z) {
+                        i += 1;
                         self.generate_chunk(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
                     }
                 }
             }
         }
+        println!("Created {} chunks", i);
     }
 
     fn is_chunk_loaded(&self, x: i32, y: i32, z: i32) -> bool {
