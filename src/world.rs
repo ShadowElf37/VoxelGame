@@ -32,7 +32,7 @@ pub struct World {
     pub spawn_point: Vec3,
     pub sky_color: [f32; 4],
     pub player: ArenaHandle<Entity>,
-    last_player_chunk_coords: Option<[isize; 3]>,
+    last_player_chunk_coords: Option<ChunkCoord>,
 
     pub need_mesh_update: Mutex<VecDeque<ArenaHandle<Chunk>>>,
     pub need_generation_update: Mutex<VecDeque<ArenaHandle<Chunk>>>,
@@ -99,7 +99,10 @@ impl World {
         // returns 0 if the chunk isn't loaded
         match self.get_chunk_at(pos) {
             Some(lock) => {
-                lock.read().unwrap().get_block_id_at(pos)
+                match lock.read() {
+                    Ok(chunk) => chunk.get_block_id_at(pos),
+                    Err(_) => 0
+                }
             }
             None => 0
         }
@@ -133,14 +136,14 @@ impl World {
 
     pub fn update_loaded_chunks(&mut self, device: &wgpu::Device) {
 
-        let (px, py, pz) = self.get_player_chunk_coords();
-        self.chunks.recenter((px, py, pz));
+        let pcp = self.get_player_chunk_coords();
+        self.chunks.recenter(pcp);
 
-        if self.last_player_chunk_coords.is_some() && [px, py, pz] == self.last_player_chunk_coords.unwrap() {
+        if self.last_player_chunk_coords.is_some() && pcp == self.last_player_chunk_coords.unwrap() {
             return
         }
         //let delta = 
-        self.last_player_chunk_coords = Some([px, py, pz]);
+        self.last_player_chunk_coords = Some(pcp);
 
         // GENERATE ANY CHUNKS THAT HAVEN'T BEEN LOADED YET
         let mut to_unload = Vec::<ChunkCoord>::new();
@@ -156,9 +159,9 @@ impl World {
         }
 
         //let mut i = 0;
-        for x in (px - RENDER_DISTANCE as isize)..(px + RENDER_DISTANCE as isize) {
-            for y in (py - RENDER_DISTANCE as isize)..(py + RENDER_DISTANCE as isize) {
-                for z in (pz - RENDER_DISTANCE as isize)..(pz + RENDER_DISTANCE as isize) {
+        for x in (pcp.0 - RENDER_DISTANCE as isize)..(pcp.0 + RENDER_DISTANCE as isize) {
+            for y in (pcp.1 - RENDER_DISTANCE as isize)..(pcp.1 + RENDER_DISTANCE as isize) {
+                for z in (pcp.2 - RENDER_DISTANCE as isize)..(pcp.2 + RENDER_DISTANCE as isize) {
                     if self.chunks.is_unloaded((x,y,z)) {
                         //i += 1;
                         self.chunks.generate_chunk((x, y, z), &self.thread_pool, &self.block_properties, device);
