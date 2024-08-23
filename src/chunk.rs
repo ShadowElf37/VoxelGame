@@ -1,3 +1,4 @@
+use std::sync::RwLock;
 use std::sync::Mutex;
 use std::sync::Arc;
 use crate::block::{BlockProtoSet, BlockID};
@@ -5,18 +6,18 @@ use crate::geometry::{Vertex, Facing};
 use ndarray::prelude::*;
 use ndarray::{Ix3, Axis};
 use noise::NoiseFn;
+use glam::Vec3;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE;
 pub const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
 
+
 type ChunkArray<T> = [T; CHUNK_VOLUME];
 
 #[derive(Debug)]
 pub struct Chunk {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+    pub pos: Vec3,
     ids_array: ChunkArray<BlockID>,
     visibility_array: ChunkArray<u8>,
     pub mesh: Vec<Vertex>,
@@ -30,7 +31,7 @@ impl<'a> Chunk {
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         //stacker::maybe_grow(std::mem::size_of::<Self>(), std::mem::size_of::<Self>(), || {
         Self {
-            x, y, z,
+            pos: Vec3::new(x, y, z), // in world coords
             ids_array: [0; CHUNK_VOLUME],
             visibility_array: [1; CHUNK_VOLUME],
             mesh: vec![],
@@ -43,19 +44,19 @@ impl<'a> Chunk {
     }
 
     pub fn check_inside_me(&self, x: f32, y: f32, z: f32) -> bool {
-        self.x + CHUNK_SIZE_F > x && x >= self.x && 
-        self.y + CHUNK_SIZE_F > y && y >= self.y && 
-        self.z + CHUNK_SIZE_F > z && z >= self.z
+        self.pos.x + CHUNK_SIZE_F > x && x >= self.pos.x && 
+        self.pos.y + CHUNK_SIZE_F > y && y >= self.pos.y && 
+        self.pos.z + CHUNK_SIZE_F > z && z >= self.pos.z
     }
 
-    pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) {
-        let (chunk_x, chunk_y, chunk_z) = (x.floor()-self.x, y.floor()-self.y, z.floor()-self.z);
+    pub fn set_block_id_at(&mut self, pos: Vec3, id: BlockID) {
+        let (chunk_x, chunk_y, chunk_z) = (pos.floor()-self.pos).into();
         let (chunk_i, chunk_j, chunk_k) = (chunk_x as usize, chunk_y as usize, chunk_z as usize);
         Self::get_view_mut(&mut self.ids_array)[(chunk_i, chunk_j, chunk_k)] = id;
     }
 
-    pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
-        let (chunk_x, chunk_y, chunk_z) = (x.floor()-self.x, y.floor()-self.y, z.floor()-self.z);
+    pub fn get_block_id_at(&self, pos: Vec3) -> BlockID {
+        let (chunk_x, chunk_y, chunk_z) = (pos.floor()-self.pos).into();
         let (chunk_i, chunk_j, chunk_k) = (chunk_x as usize, chunk_y as usize, chunk_z as usize);
         Self::get_view(&self.ids_array)[(chunk_i, chunk_j, chunk_k)]
     }
@@ -68,7 +69,7 @@ impl<'a> Chunk {
     }
 
     pub fn generate_flat(&mut self) {
-        if self.z == 0.0 {
+        if self.pos.z == 0.0 {
             let mut ids = Self::get_view_mut(&mut self.ids_array);
             ids.slice_mut(s![.., .., 0]).fill(4);
             ids.slice_mut(s![.., .., 1..3]).fill(1);
@@ -106,23 +107,23 @@ impl<'a> Chunk {
         use rayon::prelude::*;
         ids.axis_iter(Axis(2)).enumerate().par_bridge().for_each(|(z, slice)| {
             let squares = tessellate::tessellate_slice(slice);
-            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y, self.z + z as f32), Facing::U, block_proto_set);
+            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.pos.x, self.pos.y, self.pos.z + z as f32), Facing::U, block_proto_set);
             vertices.lock().unwrap().extend(verts);
-            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y, self.z + z as f32), Facing::D, block_proto_set);
+            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.pos.x, self.pos.y, self.pos.z + z as f32), Facing::D, block_proto_set);
             vertices.lock().unwrap().extend(verts);
         });
         ids.axis_iter(Axis(1)).enumerate().par_bridge().for_each(|(y, slice)| {
             let squares = tessellate::tessellate_slice(slice);
-            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y + y as f32, self.z), Facing::N, block_proto_set);
+            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.pos.x, self.pos.y + y as f32, self.pos.z), Facing::N, block_proto_set);
             vertices.lock().unwrap().extend(verts);
-            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x, self.y + y as f32, self.z), Facing::S, block_proto_set);
+            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.pos.x, self.pos.y + y as f32, self.pos.z), Facing::S, block_proto_set);
             vertices.lock().unwrap().extend(verts);
         });
         ids.axis_iter(Axis(0)).enumerate().par_bridge().for_each(|(x, slice)| {
             let squares = tessellate::tessellate_slice(slice);
-            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x + x as f32, self.y, self.z), Facing::E, block_proto_set);
+            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.pos.x + x as f32, self.pos.y, self.pos.z), Facing::E, block_proto_set);
             vertices.lock().unwrap().extend(verts);
-            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.x + x as f32, self.y, self.z), Facing::W, block_proto_set);
+            let verts = tessellate::squares_to_vertices(&squares, Vec3A::new(self.pos.x + x as f32, self.pos.y, self.pos.z), Facing::W, block_proto_set);
             vertices.lock().unwrap().extend(verts);
         });
 
@@ -155,20 +156,20 @@ impl<'a> Chunk {
         
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
-                let z = noise_gen.get([(self.x as f64 + x as f64) * scale, (self.y as f64 + y as f64) * scale]);
+                let z = noise_gen.get([(self.pos.x as f64 + x as f64) * scale, (self.pos.y as f64 + y as f64) * scale]);
                 let scaled_z = (z * 16.0).floor() as f32;
-                if scaled_z >= self.z {
-                    let top_z = (scaled_z - self.z) as usize;
-                    if scaled_z < CHUNK_SIZE_F + self.z {
+                if scaled_z >= self.pos.z {
+                    let top_z = (scaled_z - self.pos.z) as usize;
+                    if scaled_z < CHUNK_SIZE_F + self.pos.z {
                         ids.slice_mut(s![x, y, top_z]).fill(4); // block ID 4 is grass
                     } else {
                         ids.slice_mut(s![x, y, ..]).fill(2); // block ID 2 is stone
                     }
                 }
                 let dirt_z1 = scaled_z-1.0;
-                if dirt_z1 >= self.z && dirt_z1 < CHUNK_SIZE_F + self.z {
-                    ids.slice_mut(s![x, y, (dirt_z1-self.z) as usize]).fill(5);
-                    ids.slice_mut(s![x, y, 0..(dirt_z1-self.z) as usize]).fill(2);
+                if dirt_z1 >= self.pos.z && dirt_z1 < CHUNK_SIZE_F + self.pos.z {
+                    ids.slice_mut(s![x, y, (dirt_z1-self.pos.z) as usize]).fill(5);
+                    ids.slice_mut(s![x, y, 0..(dirt_z1-self.pos.z) as usize]).fill(2);
                 }
                 // let dirt_z2 = scaled_z-2.0;
                 // if dirt_z2 >= self.z && dirt_z2 < CHUNK_SIZE_F + self.z {

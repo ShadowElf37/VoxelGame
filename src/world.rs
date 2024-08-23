@@ -1,3 +1,6 @@
+use ndarray::NdIndex;
+use std::mem::MaybeUninit;
+use std::sync::RwLock;
 use std::sync::Arc;
 use crate::block::BlockID;
 use std::time::SystemTime;
@@ -10,13 +13,18 @@ use glam::f32::{Vec3};
 use crate::block;
 use crate::memarena::{Arena, ArenaHandle};
 use crate::chunk::{Chunk, CHUNK_SIZE_F};
+use crate::chunkset::{ChunkSet, ChunkCoord};
+use ndarray::prelude::*;
+use ndarray::{Array3};
+
 
 const ENTITY_LIMIT: usize = 128;
 pub const RENDER_DISTANCE: usize = 10;
-pub const RENDER_VOLUME: usize = 8*RENDER_DISTANCE*RENDER_DISTANCE*RENDER_DISTANCE;
+
 
 pub struct World {
-    pub chunks: Arena<Chunk>,
+    pub chunks: ChunkSet,
+
     pub entities: Arena<Entity>,
 
     pub block_properties: block::BlockProtoSet,
@@ -24,6 +32,7 @@ pub struct World {
     pub spawn_point: Vec3,
     pub sky_color: [f32; 4],
     pub player: ArenaHandle<Entity>,
+    last_player_chunk_coords: Option<[isize; 3]>,
 
     pub need_mesh_update: Mutex<VecDeque<ArenaHandle<Chunk>>>,
     pub need_generation_update: Mutex<VecDeque<ArenaHandle<Chunk>>>,
@@ -32,13 +41,15 @@ pub struct World {
 
 impl World {
     pub fn new() -> Self {
+        let spawn_pos = Vec3::new(0.0, 0.0, 32.0);
         let mut entities = Arena::<Entity>::new(ENTITY_LIMIT);
-        let player = entities.create(Entity::new(Vec3::new(0.0, 0.0, 32.0))).unwrap();
+        let player = entities.create(Entity::new(spawn_pos)).unwrap();
         let thread_pool = rayon::ThreadPoolBuilder::new().build().unwrap();
         println!("Created threadpool with {} threads", thread_pool.current_num_threads());
         return Self {
             // render distance changing is easy. `chunks = Arena::from_iter(chunks.iter())`. then, ensure Arena::drop() works.
-            chunks: Arena::<Chunk>::new(RENDER_VOLUME),//Vec::<block::Chunk>::with_capacity(RENDER_AREA), 
+            
+            chunks: ChunkSet::new((0, 0, 32), RENDER_DISTANCE),
             entities,
 
             block_properties: block::BlockProtoSet::from_toml("config/blocks.toml"),
@@ -46,6 +57,7 @@ impl World {
             spawn_point: Vec3::new(0.0, 0.0, 0.0),
             player,
             sky_color: [155./255., 230./255., 255./255., 1.0],
+            last_player_chunk_coords: None,
 
             need_mesh_update: Mutex::new(VecDeque::new()),
             need_generation_update: Mutex::new(VecDeque::new()),
@@ -75,125 +87,86 @@ impl World {
             ray = candidates[best_index];
             last_ray_pos = ray_pos;
             ray_pos = start_pos+ray;
-            block_id = self.get_block_id_at(ray_pos.x, ray_pos.y, ray_pos.z);
+            block_id = self.get_block_id_at(ray_pos);
         }
 
         (ray_pos-midpoint_offset, last_ray_pos-midpoint_offset, block_id)
     }
 
-    pub fn get_chunk_at(&self, x: f32, y: f32, z: f32) -> Option<ArenaHandle<Chunk>> {
-        for handle in self.chunks.iter() {
-            if self.chunks.read_lock(handle).unwrap().check_inside_me(x, y, z) {
-                return Some(handle)
-            }
-        }
-        None
-    }
+    
 
-    pub fn get_block_id_at(&self, x: f32, y: f32, z: f32) -> BlockID {
+    pub fn get_block_id_at(&self, pos: Vec3) -> BlockID {
         // returns 0 if the chunk isn't loaded
-        match self.get_chunk_at(x, y, z) {
-            Some(handle) => {
-                self.chunks.read_lock(handle).unwrap().get_block_id_at(x, y, z)
+        match self.get_chunk_at(pos) {
+            Some(lock) => {
+                lock.read().unwrap().get_block_id_at(pos)
             }
             None => 0
         }
     }
-    pub fn set_block_id_at(&mut self, x: f32, y: f32, z: f32, id: BlockID) -> Option<()> {
+    pub fn set_block_id_at(&mut self, pos: Vec3, id: BlockID, device: &wgpu::Device) -> Option<()> {
         // returns None and noops if the chunk isn't loaded
-        match self.get_chunk_at(x, y, z) {
-            Some(handle) => {
-                self.chunks.write_lock(handle).unwrap().set_block_id_at(x, y, z, id);
-                self.queue_mesh_update(handle);
+        match self.get_chunk_at(pos) {
+            Some(lock) => {
+                self.thread_pool.install(||{
+                    let mut chunk = lock.write().unwrap();
+                    chunk.set_block_id_at(pos, id);
+                    chunk.make_mesh(&self.block_properties, &self.thread_pool);
+                    chunk.make_vertex_buffer(device);
+                    drop(chunk);
+                })
+                
+                //self.queue_mesh_update(handle);
             }
             None => return None
         }
         Some(())
     }
 
-    pub fn queue_mesh_update(&mut self, handle: ArenaHandle<Chunk>) {
-        self.need_mesh_update.lock().unwrap().push_back(handle)
+    pub fn get_chunk_at(&self, pos: Vec3) -> Option<&RwLock<Chunk>> {
+        self.chunks.get_chunk_at_world_coords(pos)
     }
-    pub fn queue_chunk_update(&mut self, handle: ArenaHandle<Chunk>) {
-        self.need_generation_update.lock().unwrap().push_back(handle)
-        //new_chunk.generate_planet();
+
+    fn get_player_chunk_coords(&self) -> (isize, isize, isize) {
+        self.chunks.world_to_chunk_coords(self.entities.read_lock(self.player).unwrap().pos)
     }
-    // pub fn start_threads(&self) {
-    //     // let chunks_mutex = Arc::new(Mutex::new(self.chunks));
-    //     // let mesh_update = &self.need_mesh_update;
-    //     // let gen_update = &self.need_generation_update;
-    //     // let tp = &self.thread_pool;
-    //     // self.thread_pool.install(||{Self::loop_checking_for_chunk_updates(tp, chunks_mutex.clone(), mesh_update, gen_update)});
-    //     async_std::task::spawn(self.loop_checking_for_chunk_updates());
-    // }
-    pub fn spawn_chunk_updates(&self) {
-        let mut gen_update_lock = self.need_generation_update.lock().unwrap();
-        loop {
-            match gen_update_lock.pop_front() {
-                None => break,
-                Some(handle) => {
-                    //self.need_generation_update.try_lock().unwrap();
-                    let chunk = self.chunks.fetch_lock(handle).unwrap();
-                    let mesh_update = &self.need_mesh_update;
-                    self.thread_pool.install(|| {
-                        let mut wlock = chunk.write().unwrap();
-                        wlock.generate_planet();
-                        drop(wlock);
-                        mesh_update.lock().unwrap().push_back(handle);
-                    });
+
+    pub fn update_loaded_chunks(&mut self, device: &wgpu::Device) {
+
+        let (px, py, pz) = self.get_player_chunk_coords();
+        self.chunks.recenter((px, py, pz));
+
+        if self.last_player_chunk_coords.is_some() && [px, py, pz] == self.last_player_chunk_coords.unwrap() {
+            return
+        }
+        //let delta = 
+        self.last_player_chunk_coords = Some([px, py, pz]);
+
+        // GENERATE ANY CHUNKS THAT HAVEN'T BEEN LOADED YET
+        let mut to_unload = Vec::<ChunkCoord>::new();
+        for lock in self.chunks.iter() {
+            let cp = self.chunks.world_to_chunk_coords(lock.read().unwrap().pos);
+            if !self.chunks.check_in_bounds(cp) {
+                to_unload.push(cp);
+            }
+        }
+
+        for cp in to_unload.into_iter() {
+            self.chunks.mark_unloaded(cp);
+        }
+
+        //let mut i = 0;
+        for x in (px - RENDER_DISTANCE as isize)..(px + RENDER_DISTANCE as isize) {
+            for y in (py - RENDER_DISTANCE as isize)..(py + RENDER_DISTANCE as isize) {
+                for z in (pz - RENDER_DISTANCE as isize)..(pz + RENDER_DISTANCE as isize) {
+                    if self.chunks.is_unloaded((x,y,z)) {
+                        //i += 1;
+                        self.chunks.generate_chunk((x, y, z), &self.thread_pool, &self.block_properties, device);
+                    }
                 }
             }
         }
-    }
-    pub fn spawn_mesh_updates(&self) -> bool {
-        let mut got_any_updates = false;
-        let mut mesh_update_lock = self.need_mesh_update.lock().unwrap();
-        loop {
-            match mesh_update_lock.pop_front() {
-                None => return got_any_updates,
-                Some(handle) => {
-                    got_any_updates = true;
-                    //self.need_generation_update.try_lock().unwrap();
-                    let chunk = self.chunks.fetch_lock(handle).unwrap();
-                    let block_properties = &self.block_properties;
-                    let tp = &self.thread_pool;
-
-                    self.thread_pool.install(|| {
-                        let mut wlock = chunk.write().unwrap();
-                        wlock.make_mesh(block_properties, tp);
-                        wlock.ready_to_display = true;
-                    });
-                }
-            }
-        }
-    }
-
-    pub fn generate_chunk(&mut self, x: f32, y: f32, z: f32) {
-        let new_chunk = Chunk::new(x, y, z);
-        let handle = self.chunks.create(new_chunk).unwrap();
-        self.queue_chunk_update(handle);
-    }
-
-    pub fn generate_all_chunks_around_player(&mut self) {
-        for x in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
-            for y in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
-                for z in -(RENDER_DISTANCE as isize)..RENDER_DISTANCE as isize {
-                    //println!("Chunk generated at {} {} {}", x, y, z);
-                    self.generate_chunk(x as f32 * CHUNK_SIZE_F, y as f32 * CHUNK_SIZE_F, z as f32 * CHUNK_SIZE_F);
-                }
-            }
-        }
-    }
-    
-    pub fn get_all_chunk_meshes(&mut self, device: &wgpu::Device) {
-        for handle in self.chunks.iter() {
-            let chunk = self.chunks.fetch_lock(handle).unwrap();
-            if chunk.read().unwrap().vertex_buffer.is_none() {
-                self.thread_pool.install(||{
-                    chunk.write().unwrap().make_vertex_buffer(device);
-                });
-            }
-        }
+        //println!("Created {} chunks", i);
     }
 
     fn do_physics(&self, dt: f32, e: ArenaHandle<Entity>) {
@@ -225,22 +198,22 @@ impl World {
         let future_pos = e.pos+dx+dx.signum()*Vec3::new(e.width, e.width, 0.0);
         let (fx, fy, fz) = (future_pos.x, future_pos.y, future_pos.z);
 
-        if self.block_properties.by_id(self.get_block_id_at(fx, y, z)).solid || self.block_properties.by_id(self.get_block_id_at(fx, y, z+1.0)).solid {
+        if self.block_properties.by_id(self.get_block_id_at(Vec3::new(fx, y, z))).solid || self.block_properties.by_id(self.get_block_id_at(Vec3::new(fx, y, z+1.0))).solid {
             dx = dx.with_x(0.0);
             dv = dv.with_x(-e.vel.x);
         }
-        if self.block_properties.by_id(self.get_block_id_at(x, fy, z)).solid || self.block_properties.by_id(self.get_block_id_at(x, fy, z+1.0)).solid {
+        if self.block_properties.by_id(self.get_block_id_at(Vec3::new(x, fy, z))).solid || self.block_properties.by_id(self.get_block_id_at(Vec3::new(x, fy, z+1.0))).solid {
             dx = dx.with_y(0.0);
             dv = dv.with_y(-e.vel.y);
         }
-        if self.block_properties.by_id(self.get_block_id_at(x, y, fz)).solid {
+        if self.block_properties.by_id(self.get_block_id_at(Vec3::new(x, y, fz))).solid {
             dx = dx.with_z(0.0);
             dv = dv.with_z(-e.vel.z);
             e.in_air = false;
         } else {
             e.in_air = true;
         }
-        if self.block_properties.by_id(self.get_block_id_at(x, y, fz+e.height)).solid {
+        if self.block_properties.by_id(self.get_block_id_at(Vec3::new(x, y, fz+e.height))).solid {
             dx = dx.with_z(0.0);
             dv = dv.with_z(-e.vel.z);
         }
