@@ -104,14 +104,18 @@ impl World {
             None => 0
         }
     }
-    pub fn set_block_id_at(&mut self, pos: Vec3, id: BlockID) -> Option<()> {
+    pub fn set_block_id_at(&mut self, pos: Vec3, id: BlockID, device: &wgpu::Device) -> Option<()> {
         // returns None and noops if the chunk isn't loaded
         match self.get_chunk_at(pos) {
             Some(lock) => {
-                let mut chunk = lock.write().unwrap();
-                chunk.set_block_id_at(pos, id);
-                //chunk.make_mesh();
-                //chunk.make_vertex_buffer();
+                self.thread_pool.install(||{
+                    let mut chunk = lock.write().unwrap();
+                    chunk.set_block_id_at(pos, id);
+                    chunk.make_mesh(&self.block_properties, &self.thread_pool);
+                    chunk.make_vertex_buffer(device);
+                    drop(chunk);
+                })
+                
                 //self.queue_mesh_update(handle);
             }
             None => return None
@@ -151,18 +155,18 @@ impl World {
             self.chunks.mark_unloaded(cp);
         }
 
-        let mut i = 0;
+        //let mut i = 0;
         for x in (px - RENDER_DISTANCE as isize)..(px + RENDER_DISTANCE as isize) {
             for y in (py - RENDER_DISTANCE as isize)..(py + RENDER_DISTANCE as isize) {
                 for z in (pz - RENDER_DISTANCE as isize)..(pz + RENDER_DISTANCE as isize) {
                     if self.chunks.is_unloaded((x,y,z)) {
-                        i += 1;
+                        //i += 1;
                         self.chunks.generate_chunk((x, y, z), &self.thread_pool, &self.block_properties, device);
                     }
                 }
             }
         }
-        println!("Created {} chunks", i);
+        //println!("Created {} chunks", i);
     }
 
     fn do_physics(&self, dt: f32, e: ArenaHandle<Entity>) {

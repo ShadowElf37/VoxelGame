@@ -157,12 +157,12 @@ impl ApplicationHandler for Game<'_> {
                             let (destroy_location, place_location, _) = self.world.entities.read_lock(self.world.player).unwrap().get_block_looking_at(&self.world);
                             match button {
                                 winit::event::MouseButton::Left => {
-                                    self.world.set_block_id_at(destroy_location, 0);
+                                    self.world.set_block_id_at(destroy_location, 0, &renderer.device);
                                 },
                                 winit::event::MouseButton::Right => {
                                     let player_pos = self.world.entities.read_lock(self.world.player).unwrap().pos.floor();
                                     if place_location != player_pos && place_location != player_pos + Vec3::Z{
-                                        self.world.set_block_id_at(place_location, 6);
+                                        self.world.set_block_id_at(place_location, 6, &renderer.device);
                                     }
                                 },
                                 winit::event::MouseButton::Middle => (),

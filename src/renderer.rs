@@ -544,7 +544,7 @@ impl<'a> Renderer<'a> {
             let facing = player.facing;
             // improved frustum culling can be done if the fov is taken into account and culling happens on the normals of the 4 planes of the camera's view
             drop(player);
-            let mut j = 0;
+            //let mut j = 0;
             for lock in world.chunks.iter() {
                 match lock.try_read() {
                     Ok(chunk) => {
@@ -553,9 +553,9 @@ impl<'a> Renderer<'a> {
                         if !chunk.ready_to_display {
                             continue;
                         }
-                        j += 1;
+                        //j += 1;
                         // DO FRUSTUM CULLING
-                        if (Vec3::new(chunk.pos.x, chunk.pos.y, chunk.pos.z) - pos).dot(facing) < -23.0 {
+                        if (chunk.pos - pos).dot(facing) < -23.0 {
                             //println!("skipped {} {} {}", chunk.x, chunk.y, chunk.z);
                             continue;
                         }
@@ -577,7 +577,7 @@ impl<'a> Renderer<'a> {
                 }
                 
             }
-            println!("Rendered {} chunks", j);
+            //println!("Rendered {} chunks", j);
 
             self.text_manager.render(&mut render_pass);
         }
